@@ -2276,20 +2276,6 @@ export default function App() {
                     </div>
                   </div>
                 )}
-
-                {/* How Updating Works Guide */}
-                <div className="p-3 rounded-xl bg-slate-950/70 border border-white/5 text-[11px] text-slate-400 flex flex-col gap-1.5">
-                  <div className="flex items-center gap-1.5 font-semibold text-slate-300">
-                    <Info className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>How Distribution & Updates Work:</span>
-                  </div>
-                  <p className="m-0 leading-relaxed">
-                    • <strong>Hosting Releases:</strong> Upload your compiled <code className="text-cyan-300 font-mono">JRUSS_AI_TOOL_Setup_vX.X.msi</code> installer to your GitHub Repository under <strong>Releases</strong>.
-                  </p>
-                  <p className="m-0 leading-relaxed">
-                    • <strong>Seamless Upgrade:</strong> When users download and run the new MSI installer, Windows Installer will automatically upgrade the software while preserving all saved API keys and settings!
-                  </p>
-                </div>
               </div>
 
               <div className="pt-4 border-t border-white/10 flex justify-end">
