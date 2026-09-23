@@ -493,11 +493,17 @@ export default function App() {
   const [showKey, setShowKey] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState({ checking: false, checked: false, available: false, latestVersion: '2.5.0', releaseUrl: '', error: null, notes: '' });
-  const [githubRepoInput, setGithubRepoInput] = useState(() => localStorage.getItem('app_update_repo') || 'jmeboypc/JRUSS-AI-TOOL');
+  const [updateStatus, setUpdateStatus] = useState({ checking: false, checked: false, available: false, latestVersion: '2.5.1', releaseUrl: '', downloadUrl: '', error: null, notes: '' });
+  const [githubRepoInput, setGithubRepoInput] = useState(() => {
+    const saved = localStorage.getItem('app_update_repo');
+    if (!saved || saved.toLowerCase().includes('jamierussell') || saved.toLowerCase().includes('teachersummary')) {
+      return 'jmeboypc/JRUSS-AI-TOOL';
+    }
+    return saved;
+  });
   
   // Current app version constant
-  const CURRENT_APP_VERSION = '2.5.0';
+  const CURRENT_APP_VERSION = '2.5.1';
   
   // Live Detected Models State (from API key)
   const [detectedGeminiModels, setDetectedGeminiModels] = useState(() => {
@@ -638,6 +644,11 @@ export default function App() {
       const notes = releaseData.body || 'No release notes provided.';
       const releaseUrl = releaseData.html_url || `https://github.com/${cleanRepo}/releases`;
       
+      // Look for attached .msi or setup file in assets
+      const assets = releaseData.assets || [];
+      const msiAsset = assets.find(a => a.name && (a.name.endsWith('.msi') || a.name.endsWith('.exe')));
+      const downloadUrl = msiAsset ? msiAsset.browser_download_url : releaseUrl;
+
       // Compare versions (semver style simple comparison)
       const parseSemver = (v) => v.split('.').map(n => parseInt(n, 10) || 0);
       const [curMajor, curMinor, curPatch] = parseSemver(CURRENT_APP_VERSION);
@@ -654,8 +665,9 @@ export default function App() {
         available: isNewer,
         latestVersion: tagName || CURRENT_APP_VERSION,
         releaseUrl: releaseUrl,
+        downloadUrl: downloadUrl,
         notes: notes,
-        assets: releaseData.assets || [],
+        assets: assets,
         error: null
       });
     } catch (err) {
@@ -665,6 +677,7 @@ export default function App() {
         available: false,
         latestVersion: CURRENT_APP_VERSION,
         releaseUrl: '',
+        downloadUrl: '',
         notes: '',
         error: err.message || 'Failed to check for updates. Make sure you are connected to the internet.'
       });
@@ -1075,7 +1088,7 @@ export default function App() {
               </h1>
               <p className="text-sm text-slate-400 mt-1 flex items-center gap-2">
                 <span>Secondary School Lesson Planner & Document Tailoring Suite</span>
-                <span className="text-[10px] px-1.5 py-0.2 bg-violet-500/20 text-violet-300 border border-violet-500/30 rounded-md font-mono font-semibold">v2.5</span>
+                <span className="text-[10px] px-1.5 py-0.2 bg-violet-500/20 text-violet-300 border border-violet-500/30 rounded-md font-mono font-semibold">v2.5.1</span>
               </p>
             </div>
           </div>
@@ -2235,13 +2248,13 @@ export default function App() {
                       )}
                       <div className="pt-2 flex gap-2">
                         <a
-                          href={updateStatus.releaseUrl}
+                          href={updateStatus.downloadUrl || updateStatus.releaseUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-mode-tab btn-mode-active-doc flex items-center justify-center gap-2 py-2 text-xs font-bold text-center no-underline"
                         >
                           <Download className="w-3.5 h-3.5" />
-                          <span>View Release & Download MSI</span>
+                          <span>Download Latest MSI Installer</span>
                           <ExternalLink className="w-3 h-3 ml-1" />
                         </a>
                       </div>
