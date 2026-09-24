@@ -5,7 +5,7 @@ import {
   BookOpen, Plus, Award, RefreshCw, FileSpreadsheet, EyeOff, LayoutTemplate,
   Zap, Info, ExternalLink, Lightbulb, Search, CheckCircle2, HelpCircle,
   Clock, GraduationCap, Layers, FileCheck, ArrowRightCircle,
-  ClipboardList, CloudDownload
+  ClipboardList, CloudDownload, ShieldAlert
 } from 'lucide-react';
 import { parseDocument } from './utils/parsers';
 import { generateContent, fetchAvailableGeminiModels, fetchAvailableOpenAIModels } from './utils/ai';
@@ -467,7 +467,7 @@ const OPENAI_MODELS = [
   }
 ];
 
-const INSPIRATION_CHIPS = [
+const INSPIRATION_CHIPS_SECONDARY = [
   { label: '🧪 Practical Lab / Experiment', text: 'Include hands-on experiment steps, lab safety precautions, and required apparatus list.' },
   { label: '🗣️ Socratic Debate & Discussion', text: 'Include structured discussion prompts, talking points, and opposing viewpoints to foster debate.' },
   { label: '🎯 Exam Technique & Pitfalls', text: 'Incorporate GCSE/exam command words, common examiner misconceptions, and model answers.' },
@@ -476,6 +476,36 @@ const INSPIRATION_CHIPS = [
   { label: '🚪 Exit Ticket & Mini-Plenary', text: 'Add a 5-minute quick diagnostic exit ticket to check pupil understanding before the bell.' },
   { label: '📝 Self/Peer Mark Rubric', text: 'Include a 3-point student self-marking rubric so pupils can review their homework before handing in.' },
   { label: '🏡 Family Discussion Prompt', text: 'Add a real-world question connecting the homework to daily home life to prompt discussion with parents/guardians.' }
+];
+
+const INSPIRATION_CHIPS_PRIMARY = [
+  { label: '🎨 Hands-On & Sensory Task', text: 'Include hands-on multisensory or tactile classroom activities, drawing/colouring, and manipulatives.' },
+  { label: '📖 Storytelling & Read-Aloud', text: 'Frame key concepts through an engaging narrative or read-aloud story with kid-friendly analogies.' },
+  { label: '🔤 Phonics & Spelling Scaffolding', text: 'Integrate phonics decodable sound cues, visual word banks, and syllable rhythm claps.' },
+  { label: '🌟 Gamified / Play-Based Quest', text: 'Structure learning as a playful detective mission, team quiz, or classroom challenge.' },
+  { label: '🧸 Concrete Manipulatives & Visuals', text: 'Use number lines, counters, visual pictorial models, and colourful illustrations.' },
+  { label: '💬 Talk Partners / Think-Pair-Share', text: 'Incorporate structured talk partner routines with clear talking frames for young learners.' },
+  { label: '🌈 Brain Break & Movement', text: 'Include a 2-minute active movement break or action rhyme connecting to the topic.' },
+  { label: '🏡 Show & Tell / Home Chat', text: 'Add a fun, friendly show-and-tell question to share with family at home.' }
+];
+
+const PRIMARY_YEAR_LEVELS = [
+  'Reception / EYFS (Ages 4-5)',
+  'Year 1 (KS1 / Ages 5-6)',
+  'Year 2 (KS1 / Ages 6-7)',
+  'Year 3 (Lower KS2 / Ages 7-8)',
+  'Year 4 (Lower KS2 / Ages 8-9)',
+  'Year 5 (Upper KS2 / Ages 9-10)',
+  'Year 6 (Upper KS2 / Ages 10-11)'
+];
+
+const SECONDARY_YEAR_LEVELS = [
+  'Year 7 (KS3)',
+  'Year 8 (KS3)',
+  'Year 9 (KS3)',
+  'Year 10 (KS4/GCSE)',
+  'Year 11 (KS4/GCSE)',
+  'A-Level / Year 12+'
 ];
 
 export default function App() {
@@ -493,7 +523,7 @@ export default function App() {
   const [showKey, setShowKey] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState({ checking: false, checked: false, available: false, latestVersion: '2.5.1', releaseUrl: '', downloadUrl: '', error: null, notes: '' });
+  const [updateStatus, setUpdateStatus] = useState({ checking: false, checked: false, available: false, latestVersion: '2.5.2', releaseUrl: '', downloadUrl: '', error: null, notes: '' });
   const [githubRepoInput, setGithubRepoInput] = useState(() => {
     const saved = localStorage.getItem('app_update_repo');
     if (!saved || saved.toLowerCase().includes('jamierussell') || saved.toLowerCase().includes('teachersummary')) {
@@ -503,7 +533,10 @@ export default function App() {
   });
   
   // Current app version constant
-  const CURRENT_APP_VERSION = '2.5.1';
+  const CURRENT_APP_VERSION = '2.5.2';
+
+  // Education Stage State ('secondary' | 'primary')
+  const [educationStage, setEducationStage] = useState(() => localStorage.getItem('ai_education_stage') || 'secondary');
   
   // Live Detected Models State (from API key)
   const [detectedGeminiModels, setDetectedGeminiModels] = useState(() => {
@@ -530,7 +563,10 @@ export default function App() {
   const [promptTopic, setPromptTopic] = useState(() => localStorage.getItem('ai_prompt_topic') || '');
 
   // Class configuration
-  const [classYear, setClassYear] = useState('Year 8 (KS3)');
+  const [classYear, setClassYear] = useState(() => {
+    const savedStage = localStorage.getItem('ai_education_stage') || 'secondary';
+    return savedStage === 'primary' ? 'Year 4 (Lower KS2 / Ages 8-9)' : 'Year 8 (KS3)';
+  });
   const [curriculum, setCurriculum] = useState('UK National Curriculum');
   const [learningFocus, setLearningFocus] = useState('Mixed Ability');
   
@@ -582,6 +618,29 @@ export default function App() {
 
   const isFreeTier = provider === 'gemini' && (customModel.trim() ? !customModel.toLowerCase().includes('pro') : currentGeminiModel.tier === 'free');
 
+  // Handle switching between Primary and Secondary education
+  const handleToggleEducationStage = (newStage) => {
+    if (newStage === educationStage) return;
+    setEducationStage(newStage);
+    localStorage.setItem('ai_education_stage', newStage);
+    if (newStage === 'primary') {
+      setClassYear('Year 4 (Lower KS2 / Ages 8-9)');
+      document.body.classList.add('primary-theme');
+    } else {
+      setClassYear('Year 8 (KS3)');
+      document.body.classList.remove('primary-theme');
+    }
+  };
+
+  // Sync body theme class with current education stage on mount
+  useEffect(() => {
+    if (educationStage === 'primary') {
+      document.body.classList.add('primary-theme');
+    } else {
+      document.body.classList.remove('primary-theme');
+    }
+  }, [educationStage]);
+
   // Persist settings & detected models
   useEffect(() => {
     localStorage.setItem('ai_provider', provider);
@@ -591,6 +650,7 @@ export default function App() {
     localStorage.setItem('ai_input_mode', inputMode);
     localStorage.setItem('ai_prompt_topic', promptTopic);
     localStorage.setItem('ai_homework_duration', homeworkDuration);
+    localStorage.setItem('ai_education_stage', educationStage);
 
     if (detectedGeminiModels) {
       localStorage.setItem('ai_detected_gemini_models', JSON.stringify(detectedGeminiModels));
@@ -606,7 +666,7 @@ export default function App() {
     if (githubRepoInput) {
       localStorage.setItem('app_update_repo', githubRepoInput.trim());
     }
-  }, [provider, apiKey, model, customModel, inputMode, promptTopic, homeworkDuration, detectedGeminiModels, detectedOpenAIModels, githubRepoInput]);
+  }, [provider, apiKey, model, customModel, inputMode, promptTopic, homeworkDuration, educationStage, detectedGeminiModels, detectedOpenAIModels, githubRepoInput]);
 
   // Check for app updates against GitHub releases
   const handleCheckForUpdates = async (repoName = githubRepoInput) => {
@@ -858,7 +918,9 @@ export default function App() {
       const template = TEMPLATES.find(t => t.id === selectedTemplate) || TEMPLATES[0];
       
       // Inject context variables into system instruction
-      let classContext = `You are tailoring this for a ${classYear} level class studying under the ${curriculum} framework. The student ability group is: ${learningFocus}. Incorporate secondary education pedagogical tricks, lesson timings, and specific checks for understanding suitable for this group.`;
+      let classContext = educationStage === 'primary'
+        ? `You are tailoring this for a primary school class (${classYear}) studying under the ${curriculum} framework. The student ability group is: ${learningFocus}. Incorporate primary education pedagogy: warm, nurturing, child-friendly explanations, engaging sensory or concrete examples, playful starter routines, clear phonics/reading scaffolds, and bite-sized checks for understanding suitable for primary children.`
+        : `You are tailoring this for a ${classYear} level class studying under the ${curriculum} framework. The student ability group is: ${learningFocus}. Incorporate secondary education pedagogical tricks, lesson timings, and specific checks for understanding suitable for this group.`;
       if (selectedTemplate === 'homework') {
         classContext += ` The homework must strictly fit within an estimated completion duration of ${homeworkDuration === '60' ? '1 hour (60 minutes)' : `${homeworkDuration} minutes`}. Ensure questions are realistic in length and provide clear student time management guidelines.`;
       }
@@ -871,7 +933,7 @@ export default function App() {
         const aggregatedText = getAggregatedText();
         userPromptText = template.userPrompt(aggregatedText, customPrompt, false, homeworkDuration);
       } else {
-        const coreTopic = promptTopic.trim() || 'Secondary School Curriculum Unit';
+        const coreTopic = promptTopic.trim() || (educationStage === 'primary' ? 'Primary School Curriculum Unit' : 'Secondary School Curriculum Unit');
         userPromptText = template.userPrompt(coreTopic, customPrompt, true, homeworkDuration);
       }
 
@@ -1075,25 +1137,62 @@ export default function App() {
         {/* Header Block */}
         <header className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-white/10 pb-6">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-violet-600/20 rounded-2xl border border-violet-500/30 glow-border-purple">
-              <Sparkles className="w-8 h-8 text-violet-400" />
+            <div className={`p-3 rounded-2xl border transition-all duration-300 ${
+              educationStage === 'primary' 
+                ? 'bg-amber-500/20 border-amber-400/40 shadow-[0_0_18px_rgba(245,158,11,0.25)]' 
+                : 'bg-violet-600/20 border-violet-500/30 glow-border-purple'
+            }`}>
+              <Sparkles className={`w-8 h-8 transition-colors duration-300 ${educationStage === 'primary' ? 'text-amber-400' : 'text-violet-400'}`} />
             </div>
             <div>
               <h1 className="text-3xl font-extrabold tracking-tight text-white m-0">
                 <DecryptedText 
                   text="JRUSS AI TOOL" 
                   speed={40} 
-                  className="bg-gradient-to-r from-violet-400 via-indigo-200 to-cyan-400 bg-clip-text text-transparent" 
+                  className={educationStage === 'primary'
+                    ? "bg-gradient-to-r from-amber-400 via-orange-300 to-sky-400 bg-clip-text text-transparent"
+                    : "bg-gradient-to-r from-violet-400 via-indigo-200 to-cyan-400 bg-clip-text text-transparent"
+                  }
                 />
               </h1>
               <p className="text-sm text-slate-400 mt-1 flex items-center gap-2">
-                <span>Secondary School Lesson Planner & Document Tailoring Suite</span>
-                <span className="text-[10px] px-1.5 py-0.2 bg-violet-500/20 text-violet-300 border border-violet-500/30 rounded-md font-mono font-semibold">v2.5.1</span>
+                <span>
+                  {educationStage === 'primary' 
+                    ? 'Primary School Lesson Planner & Child-Friendly Teaching Suite' 
+                    : 'Secondary School Lesson Planner & Document Tailoring Suite'}
+                </span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono font-semibold border ${
+                  educationStage === 'primary'
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                    : 'bg-violet-500/20 text-violet-300 border-violet-500/30'
+                }`}>v2.5.2</span>
               </p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 flex-wrap justify-end">
+            {/* Primary vs Secondary Education Stage Switch */}
+            <div className="edu-stage-switch" title="Toggle between Primary and Secondary school curriculum modes">
+              <button
+                type="button"
+                onClick={() => handleToggleEducationStage('primary')}
+                className={`edu-stage-btn ${educationStage === 'primary' ? 'active primary' : ''}`}
+                aria-pressed={educationStage === 'primary'}
+              >
+                <span>🎒</span>
+                <span>Primary</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleEducationStage('secondary')}
+                className={`edu-stage-btn ${educationStage === 'secondary' ? 'active secondary' : ''}`}
+                aria-pressed={educationStage === 'secondary'}
+              >
+                <span>🎓</span>
+                <span>Secondary</span>
+              </button>
+            </div>
+
             {/* Updates Button */}
             <button
               onClick={() => {
@@ -1150,6 +1249,14 @@ export default function App() {
           </div>
         </header>
 
+        {/* Small GDPR & KCSiE Safeguarding Disclaimer Banner */}
+        <div className="disclaimer-banner">
+          <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>
+            <strong>Safeguarding & Data Privacy Notice:</strong> In compliance with UK GDPR and Keeping Children Safe in Education (KCSiE) policies, please do not input real pupil names, personal identifiable information (PII), or confidential safeguarding data.
+          </span>
+        </div>
+
         {/* Content Layout Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
@@ -1157,11 +1264,11 @@ export default function App() {
           <div className="lg:col-span-5 flex flex-col gap-6">
 
             {/* School / Class Settings Card */}
-            <StarBorder color="#06b6d4">
-              <SpotlightCard className="bg-transparent border-0" spotlightColor="rgba(6, 182, 212, 0.12)">
+            <StarBorder color={educationStage === 'primary' ? '#f59e0b' : '#06b6d4'}>
+              <SpotlightCard className="bg-transparent border-0" spotlightColor={educationStage === 'primary' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(6, 182, 212, 0.12)'}>
                 <div className="flex items-center gap-2 mb-4">
-                  <LayoutTemplate className="w-5 h-5 text-cyan-400" />
-                  <h2 className="text-lg text-white m-0">Pedagogical Context</h2>
+                  <LayoutTemplate className={`w-5 h-5 ${educationStage === 'primary' ? 'text-amber-400' : 'text-cyan-400'}`} />
+                  <h2 className="text-lg text-white m-0">Pedagogical Context ({educationStage === 'primary' ? 'Primary' : 'Secondary'})</h2>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
@@ -1172,12 +1279,9 @@ export default function App() {
                       onChange={(e) => setClassYear(e.target.value)}
                       className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
                     >
-                      <option value="Year 7 (KS3)">Year 7 (KS3)</option>
-                      <option value="Year 8 (KS3)">Year 8 (KS3)</option>
-                      <option value="Year 9 (KS3)">Year 9 (KS3)</option>
-                      <option value="Year 10 (KS4/GCSE)">Year 10 (KS4/GCSE)</option>
-                      <option value="Year 11 (KS4/GCSE)">Year 11 (KS4/GCSE)</option>
-                      <option value="A-Level / Year 12+">A-Level / Year 12+</option>
+                      {(educationStage === 'primary' ? PRIMARY_YEAR_LEVELS : SECONDARY_YEAR_LEVELS).map((lvl) => (
+                        <option key={lvl} value={lvl}>{lvl}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -1371,7 +1475,7 @@ export default function App() {
                         <span className="text-[10px] text-slate-500">Click to add to directives</span>
                       </label>
                       <div className="flex flex-wrap gap-1.5">
-                        {INSPIRATION_CHIPS.map((chip, idx) => (
+                        {(educationStage === 'primary' ? INSPIRATION_CHIPS_PRIMARY : INSPIRATION_CHIPS_SECONDARY).map((chip, idx) => (
                           <button
                             key={idx}
                             type="button"
@@ -1387,7 +1491,7 @@ export default function App() {
                     </div>
 
                     <div className="p-3 bg-teal-500/10 border border-teal-500/20 rounded-xl text-[11px] text-teal-200/90 leading-relaxed">
-                      💡 <strong>Prompt-Only Tip:</strong> Pick any blueprint on the right (Lesson Plan, Scheme of Work, Quiz, Vocabulary, Differentiated Resources, Homework, or Lesson Materials & Handouts). The AI synthesizes complete classroom resources matching your selected year level and curriculum.
+                      💡 <strong>Prompt-Only Tip:</strong> Pick any blueprint on the right (Lesson Plan, Scheme of Work, Quiz, Vocabulary, Differentiated Resources, Homework, or Lesson Materials & Handouts). The AI synthesizes complete classroom resources matching your selected {educationStage === 'primary' ? 'primary' : 'secondary'} year level and curriculum.
                     </div>
                   </div>
                 </SpotlightCard>
@@ -1400,10 +1504,10 @@ export default function App() {
           <div className="lg:col-span-7 flex flex-col gap-6">
             
             {/* Prompt Template Card */}
-            <StarBorder color="#6366f1">
-              <SpotlightCard className="bg-transparent border-0" spotlightColor="rgba(99, 102, 241, 0.12)">
+            <StarBorder color={educationStage === 'primary' ? '#f59e0b' : '#6366f1'}>
+              <SpotlightCard className="bg-transparent border-0" spotlightColor={educationStage === 'primary' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(99, 102, 241, 0.12)'}>
                 <div className="flex items-center gap-2 mb-4">
-                  <Sparkles className="w-5 h-5 text-indigo-400" />
+                  <Sparkles className={`w-5 h-5 ${educationStage === 'primary' ? 'text-amber-400' : 'text-indigo-400'}`} />
                   <h2 className="text-lg text-white m-0">Planner Output Blueprint</h2>
                 </div>
 
@@ -1418,7 +1522,7 @@ export default function App() {
                         onClick={() => setSelectedTemplate(t.id)}
                         className={`blueprint-card ${isSelected ? 'selected' : ''}`}
                       >
-                        <Icon className={`w-5 h-5 shrink-0 mt-0.5 ${isSelected ? 'text-violet-400' : 'text-slate-400'}`} />
+                        <Icon className={`w-5 h-5 shrink-0 mt-0.5 ${isSelected ? (educationStage === 'primary' ? 'text-amber-400' : 'text-violet-400') : 'text-slate-400'}`} />
                         <div>
                           <p className="text-xs font-semibold m-0">{t.name}</p>
                           <p className="text-[10px] text-slate-400 m-0 mt-0.5 line-clamp-2 leading-relaxed">{t.description}</p>
@@ -1430,13 +1534,19 @@ export default function App() {
 
                 {/* Homework Target Duration Selector (Shown when Homework Assignment is active) */}
                 {selectedTemplate === 'homework' && (
-                  <div className="mb-4 p-3.5 bg-purple-950/30 border border-purple-500/25 rounded-xl">
+                  <div className={`mb-4 p-3.5 rounded-xl border ${
+                    educationStage === 'primary'
+                      ? 'bg-amber-950/20 border-amber-500/25'
+                      : 'bg-purple-950/30 border-purple-500/25'
+                  }`}>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-semibold uppercase tracking-wider text-purple-200 flex items-center gap-1.5 m-0">
-                        <Clock className="w-3.5 h-3.5 text-purple-400" />
+                      <label className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 m-0 ${
+                        educationStage === 'primary' ? 'text-amber-200' : 'text-purple-200'
+                      }`}>
+                        <Clock className={`w-3.5 h-3.5 ${educationStage === 'primary' ? 'text-amber-400' : 'text-purple-400'}`} />
                         <span>Target Homework Duration</span>
                       </label>
-                      <span className="text-[10px] text-purple-300/70">Calibrates task volume & pacing</span>
+                      <span className={`text-[10px] ${educationStage === 'primary' ? 'text-amber-300/70' : 'text-purple-300/70'}`}>Calibrates task volume & pacing</span>
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -1455,7 +1565,7 @@ export default function App() {
                             className={`duration-pill flex-col items-start text-left justify-center py-2 px-2.5 ${isActive ? 'active' : ''}`}
                           >
                             <span className="text-xs font-bold leading-tight">{d.label}</span>
-                            <span className={`text-[9px] leading-tight mt-0.5 ${isActive ? 'text-purple-200' : 'text-slate-500'}`}>
+                            <span className={`text-[9px] leading-tight mt-0.5 ${isActive ? (educationStage === 'primary' ? 'text-amber-200' : 'text-purple-200') : 'text-slate-500'}`}>
                               {d.sub}
                             </span>
                           </button>
@@ -1468,9 +1578,11 @@ export default function App() {
                 {/* Custom directives */}
                 <div className="mb-4">
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
-                    <span>{inputMode === 'prompt' ? 'Lesson Focus Directives & Requirements' : 'Custom Directives (Secondary School Focus)'}</span>
+                    <span>{inputMode === 'prompt' ? 'Lesson Focus Directives & Requirements' : `Custom Directives (${educationStage === 'primary' ? 'Primary' : 'Secondary'} Focus)`}</span>
                     <span className="text-[10px] text-slate-500">
-                      {inputMode === 'prompt' ? 'e.g. 60-min lesson, starter recap, lab experiment' : 'e.g. Include a practical lab, roleplay, exit questions'}
+                      {inputMode === 'prompt' 
+                        ? (educationStage === 'primary' ? 'e.g. 45-min lesson, story starter, play activity' : 'e.g. 60-min lesson, starter recap, lab experiment') 
+                        : (educationStage === 'primary' ? 'e.g. Include phonics, sensory task, colouring' : 'e.g. Include a practical lab, roleplay, exit questions')}
                     </span>
                   </label>
                   <textarea 
@@ -1520,13 +1632,13 @@ export default function App() {
             </StarBorder>
 
             {/* Generated Workspace Card */}
-            <StarBorder color="#a78bfa">
-              <SpotlightCard className="bg-transparent border-0 flex flex-col min-h-[400px]" spotlightColor="rgba(167, 139, 250, 0.12)">
+            <StarBorder color={educationStage === 'primary' ? '#0ea5e9' : '#a78bfa'}>
+              <SpotlightCard className="bg-transparent border-0 flex flex-col min-h-[400px]" spotlightColor={educationStage === 'primary' ? 'rgba(14, 165, 233, 0.12)' : 'rgba(167, 139, 250, 0.12)'}>
                 
                 {/* Workspace Header Panel */}
                 <div className="border-b border-white/10 pb-3 bg-transparent flex flex-col sm:flex-row items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <FileCode className="w-4 h-4 text-violet-400" />
+                    <FileCode className={`w-4 h-4 ${educationStage === 'primary' ? 'text-sky-400' : 'text-violet-400'}`} />
                     <span className="text-xs font-semibold text-white">Generated Teaching Plan</span>
                     {outputContent && (
                       <span className="text-[10px] px-2 py-0.5 bg-white/5 border border-white/10 rounded-full text-slate-400">
@@ -1667,7 +1779,11 @@ export default function App() {
 
                       <button 
                         onClick={handleCopyRichText}
-                        className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale focus:outline-none"
+                        className={`px-3 py-1.5 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale focus:outline-none transition ${
+                          educationStage === 'primary' 
+                            ? 'bg-amber-600 hover:bg-amber-500' 
+                            : 'bg-violet-600 hover:bg-violet-500'
+                        }`}
                       >
                         {copied ? (
                           <>
