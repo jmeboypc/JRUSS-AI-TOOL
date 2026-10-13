@@ -1,7 +1,7 @@
 {
   "name": "jruss-ai-tool",
   "private": true,
-  "version": "2.5.2",
+  "version": "2.5.3",
   "type": "module",
   "main": "electron-main.cjs",
   "scripts": {
@@ -12,9 +12,11 @@
     "pack": "node pack.cjs"
   },
   "dependencies": {
+    "jspdf": "^4.2.1",
     "jszip": "^3.10.1",
     "lucide-react": "^1.23.0",
     "marked": "^18.0.5",
+    "pptxgenjs": "^4.0.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

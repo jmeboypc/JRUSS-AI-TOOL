@@ -4,8 +4,8 @@ import {
   Trash2, Eye, FileCode, AlertCircle, 
   BookOpen, Plus, Award, RefreshCw, FileSpreadsheet, EyeOff, LayoutTemplate,
   Zap, Info, ExternalLink, Lightbulb, Search, CheckCircle2, HelpCircle,
-  Clock, GraduationCap, Layers, FileCheck, ArrowRightCircle,
-  ClipboardList, CloudDownload, ShieldAlert
+  Clock, GraduationCap, Layers, FileCheck,
+  ClipboardList, CloudDownload, ShieldAlert, Presentation
 } from 'lucide-react';
 import { parseDocument } from './utils/parsers';
 import { generateContent, fetchAvailableGeminiModels, fetchAvailableOpenAIModels } from './utils/ai';
@@ -15,6 +15,8 @@ import StarBorder from './components/StarBorder';
 import DotField from './components/DotField';
 import { marked } from 'marked';
 import { exportMarkdownToDocx } from './utils/docxExport';
+import { exportMarkdownToPdf } from './utils/pdfExport';
+import { exportMarkdownToPptx } from './utils/pptxExport';
 
 // Preset Output Templates tailored for Secondary School Teachers
 const TEMPLATES = [
@@ -22,7 +24,7 @@ const TEMPLATES = [
     id: 'lesson_plan',
     name: 'Detailed Lesson Plan',
     icon: BookOpen,
-    description: 'Structure a complete lesson with learning objectives, timings, starter, main activity, differentiation, and assessments.',
+    description: 'Lesson timings, objectives, starter, core tasks, differentiation, and plenary.',
     systemPrompt: `You are an expert secondary school teacher and curriculum advisor. 
 Your task is to generate a comprehensive, highly structured lesson plan based on the teacher's input materials or prompt.
 Format the output in clean Markdown. Start with a lesson overview, followed by:
@@ -55,7 +57,7 @@ Additional custom requirements or context: ${custom || 'None provided.'}`;
     id: 'scheme_of_work',
     name: 'Scheme of Work (SOW)',
     icon: LayoutTemplate,
-    description: 'Map out a multi-lesson learning journey aligning topics, activities, resources, and assessments.',
+    description: 'Multi-lesson unit sequence aligning objectives, activities, and milestones.',
     systemPrompt: `You are a Senior Curriculum Designer.
 Your task is to generate a beautiful, comprehensive Scheme of Work (SOW) based on the input materials or unit topic.
 Format the output in clean Markdown. Include:
@@ -87,7 +89,7 @@ Additional custom requirements or context: ${custom || 'None provided.'}`;
     id: 'quiz_generator',
     name: 'Assessment & Quiz Creator',
     icon: Award,
-    description: 'Design multiple choice, short answer, and challenge questions with a full teacher grading rubric.',
+    description: 'Multiple choice, short answer, and challenge questions with teacher mark rubric.',
     systemPrompt: `You are a Subject Assessment Lead.
 Generate a structured student assessment based on the text or topic provided.
 Format the output in clean Markdown. Include:
@@ -119,7 +121,7 @@ Additional custom requirements or context: ${custom || 'None provided.'}`;
     id: 'vocab_flashcards',
     name: 'Key Vocabulary & Glossary',
     icon: FileSpreadsheet,
-    description: 'Extract vital technical terms, definitions, and model sentences into a reference table.',
+    description: 'Tier 2 & 3 terminology table with definitions, sentence examples, and challenges.',
     systemPrompt: `You are a Literacy & Language Specialist in education.
 Extract key vocabulary and technical terminology from the resource materials or topic.
 Format the output in clean Markdown. Create a structured table containing:
@@ -151,7 +153,7 @@ Additional custom requirements or context: ${custom || 'None provided.'}`;
     id: 'differentiation',
     name: 'Differentiated Resources',
     icon: Award,
-    description: 'Design a core student worksheet accompanied by specialized Support and Challenge variations.',
+    description: 'Core classroom worksheet paired with Support and Challenge variations.',
     systemPrompt: `You are an expert Differentiation Specialist.
 Your task is to generate student-facing resource text based on the source material or topic.
 Format the output in clean Markdown. Provide three distinct versions of the student resource:
@@ -182,7 +184,7 @@ Additional custom requirements or context: ${custom || 'None provided.'}`;
     id: 'homework',
     name: 'Homework Assignment',
     icon: GraduationCap,
-    description: 'Set homework tasks calibrated to completion time (15-30m, 1h), age range, and curriculum with student instructions and answer key.',
+    description: 'Paced homework tasks (15m-1h) with pupil instructions, success criteria, and mark key.',
     systemPrompt: `You are an expert secondary education Homework & Independent Learning Specialist.
 Your task is to design a high-impact, age-appropriate homework assignment tailored to the student age group, curriculum, and target duration.
 The assignment MUST be strictly achievable within the allocated student time constraint.
@@ -240,7 +242,7 @@ Additional custom requirements or context: ${custom || 'Design a balanced, engag
     id: 'lesson_materials',
     name: 'Lesson Materials & Handouts',
     icon: Layers,
-    description: 'Produce complete classroom student materials: reading handouts, step-by-step tasks, guided activities, and answer keys.',
+    description: 'Print-ready student reading handouts, guided tasks, worksheets, and answers.',
     systemPrompt: `You are an expert Educational Resource Creator and Secondary School Materials Designer.
 Your task is to produce rich, complete, ready-to-teach student lesson materials and classroom worksheets based on the provided topic, plan, or course files.
 Do NOT just provide an outline or summary; write the ACTUAL, FULL student-facing content and materials that a teacher can print or project immediately.
@@ -296,7 +298,7 @@ Additional custom requirements or context: ${custom || 'Transform this into full
     id: 'cover_work',
     name: 'Cover Work (Supply Pack)',
     icon: ClipboardList,
-    description: 'Generate a complete, self-contained cover work pack for supply/cover teachers with clear classroom routines, independent tasks, and a full answer key.',
+    description: 'Self-contained supply lesson pack with student routines, tasks, and full answers.',
     systemPrompt: `You are an expert secondary school cover coordinator and pedagogical specialist.
 Your task is to design a bulletproof, completely self-contained Cover Work Lesson Pack designed specifically for a supply/cover teacher (who may not be a subject specialist) to deliver seamlessly.
 The lesson must be primarily student-led, highly structured, calm, and manageable in any classroom setting.
@@ -368,59 +370,153 @@ ${content}
 
 Additional custom requirements or context: ${custom || 'Convert this material into a calm, structured cover lesson pack with student tasks and a complete teacher answer key.'}`;
     }
+  },
+  {
+    id: 'presentation',
+    name: 'PowerPoint Presentation (Test)',
+    icon: Presentation,
+    description: 'Formatted slide decks with bullet points, speaker notes, and .pptx download.',
+    systemPrompt: `You are an expert Educational Presentation Designer and Secondary School Pedagogy Specialist.
+Your task is to design a structured classroom slide deck presentation based on the provided topic, plan, or course documents.
+Format the output in clear Markdown where EACH slide is cleanly separated using a Level 2 Header: "## Slide [Number]: [Slide Title]".
+Follow this structure:
+1. ## Slide 1: [Lesson Title / Topic]
+   - Subtitle: [Target Key Stage & Subject]
+   - Learning Goals: 2-3 concise bullet points.
+   - **Teacher Notes:** Engaging hook question or entry routine.
+2. For subsequent content slides:
+   - Provide 3-5 concise, high-impact bullet points designed for projector visibility (avoid walls of tiny text).
+   - Use bold keywords.
+   - Include a "**Teacher Notes:**" line at the bottom of each slide containing spoken explanations, check-for-understanding questions, or activity timings.
+3. Include an interactive task slide, a check for understanding / discussion slide, and a plenary / exit ticket slide.
+Keep slide titles punchy and bullet points easy for pupils to read.`,
+    userPrompt: (content, custom, isPromptOnly = false, duration = '30', slideCount = '10') => {
+      const targetSlides = slideCount || '10';
+      if (isPromptOnly) {
+        return `Design a structured classroom slide presentation (target: approximately ${targetSlides} slides) for this topic:
+
+[TOPIC / LESSON FOCUS]
+${content}
+
+[TARGET SLIDE COUNT]
+Approximately ${targetSlides} slides.
+
+[SPECIFIC TEACHING INSTRUCTIONS / SLIDE REQUIREMENTS]
+${custom || `Create an engaging classroom presentation with ~${targetSlides} slides, crisp bullet points, and practical teacher delivery notes for every slide.`}`;
+      }
+      return `Design a structured classroom slide presentation (target: approximately ${targetSlides} slides) based on the provided material:
+
+[TARGET SLIDE COUNT]
+Approximately ${targetSlides} slides.
+
+--- SOURCE MATERIAL START ---
+${content}
+--- SOURCE MATERIAL END ---
+
+Additional custom requirements or context: ${custom || `Create an engaging classroom presentation with ~${targetSlides} slides, crisp bullet points, and practical teacher delivery notes for every slide.`}`;
+    }
+  },
+  {
+    id: 'marking_scheme',
+    name: 'Model Answers & Marking Scheme',
+    icon: CheckCircle2,
+    description: 'Exam-style criteria, leveled model answers (Band 1-3), and grading tips.',
+    systemPrompt: `You are an expert Chief Examiner, Senior Marker, and Secondary Education Assessment Specialist.
+Your task is to produce a comprehensive, rigorous Model Answer Key and Marking Scheme based on the provided topic, questions, or source materials.
+Format the output in clean, professional Markdown:
+
+# 📝 Marking Scheme & Model Answers: [Subject & Topic Title]
+*Target Key Stage / Year*: [Class Year] | *Exam/Curriculum Standard*: [Curriculum] | *Target Level*: [Student Ability]
+
+---
+
+## 🎯 Section 1: Assessment Overview & Mark Allocation
+- Total Marks available and recommended time limit.
+- Core assessment objectives evaluated (e.g. AO1 Knowledge & Recall, AO2 Application & Analysis, AO3 Evaluation & Justification).
+
+---
+
+## 📋 Section 2: Detailed Mark Scheme & Model Solutions
+For each core question or task:
+- **Question / Task Prompt**: Clear statement of the task.
+- **Total Marks**: (e.g., [4 Marks])
+- **Indicative Content & Point Allocation**:
+  - 1 mark for each specific valid point/keyword.
+  - Clear guidance on acceptable alternative explanations or working out.
+- **Exemplar Model Answer**: A perfect, full-marks student response demonstrating ideal structure, technical vocabulary, and clarity.
+
+---
+
+## 🪜 Section 3: Leveled Marking Grid & Common Misconceptions
+- **Graded Response Comparison**:
+  - *Grade/Band 1 (Developing/Partial)*: Typical incomplete or flawed answer with feedback comments.
+  - *Grade/Band 3 (Strong/Exemplary)*: What a top-tier answer looks like.
+- **Common Misconceptions & Traps**: 3 key pitfalls students make on this topic and how markers penalize them.
+- **Marker Tip / Quick Feedback Codes**: 2-3 shorthand notes for teachers to use during rapid book/paper marking.`,
+    userPrompt: (content, custom, isPromptOnly = false) => {
+      if (isPromptOnly) {
+        return `Produce a comprehensive exam-board style mark scheme and model answer guide for this topic:
+
+[TOPIC / ASSESSMENT FOCUS]
+${content}
+
+[SPECIFIC GRADING DIRECTIVES]
+${custom || 'Provide complete point-by-point marking criteria, model answers, common student misconceptions, and leveled response exemplars.'}`;
+      }
+      return `Produce a comprehensive exam-board style mark scheme and model answer guide based on this input material:
+
+--- SOURCE MATERIAL START ---
+${content}
+--- SOURCE MATERIAL END ---
+
+Additional custom requirements or context: ${custom || 'Generate a rigorous teacher marking scheme with full model solutions, mark allocations, and pupil misconception warnings.'}`;
+    }
   }
 ];
 
 const GEMINI_MODELS = [
   {
-    id: 'gemini-3.5-flash-lite',
-    name: 'Gemini 3.5 Flash-Lite',
+    id: 'gemini-3.8-flash-lite',
+    name: 'Gemini 3.8 Flash-Lite',
     tier: 'free',
-    badge: 'Free Tier (Fast & Recommended)',
+    badge: 'Latest Free Tier (Fastest & Default)',
     speed: 'Instant',
-    description: 'Fastest lightweight model. Ideal for instant worksheets, cover work, and lesson planning without token limits.',
-    recommended: true
-  },
-  {
-    id: 'gemini-3.5-flash',
-    name: 'Gemini 3.5 Flash',
-    tier: 'free',
-    badge: 'Free Tier (Recommended)',
-    speed: 'Ultra Fast',
-    description: 'High-speed flagship Flash model with superior pedagogical reasoning and extensive free quota.',
+    description: 'Latest lightweight model. Ultra-low latency, generous free quota, and ideal for instant worksheets, glossaries, and lesson planning.',
     recommended: true
   },
   {
     id: 'gemini-3.8-flash',
     name: 'Gemini 3.8 Flash',
     tier: 'free',
-    badge: 'Free Tier',
+    badge: 'Latest Free Tier (Flagship)',
     speed: 'Ultra Fast',
-    description: 'Next-gen Flash model with advanced reasoning capabilities for lesson planning.'
+    description: 'Current flagship Flash workhorse. Exceptional pedagogical reasoning, multimodal depth, and high free tier limits.',
+    recommended: true
   },
   {
-    id: 'gemini-3.8-flash-lite',
-    name: 'Gemini 3.8 Flash-Lite',
+    id: 'gemini-3.5-flash-lite',
+    name: 'Gemini 3.5 Flash-Lite',
     tier: 'free',
-    badge: 'Free Tier (Lightweight)',
+    badge: 'Free Tier (Fast & Stable)',
     speed: 'Instant',
-    description: 'Ultra-low latency lightweight model for rapid worksheet generation and quick glossary lookups.'
+    description: 'Fast lightweight model optimized for quick classroom summaries and rapid generation.',
+    recommended: true
   },
   {
-    id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
+    id: 'gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash',
     tier: 'free',
-    badge: 'Free Tier',
-    speed: 'Fast',
-    description: 'Multimodal workhorse with standard free quota on Google AI Studio.'
+    badge: 'Free Tier (Stable)',
+    speed: 'Ultra Fast',
+    description: 'High-speed Flash model with proven pedagogical reasoning and extensive free quota.'
   },
   {
     id: 'gemini-2.5-flash-lite',
     name: 'Gemini 2.5 Flash-Lite',
     tier: 'free',
-    badge: 'Free Tier',
+    badge: 'Free Tier (Legacy)',
     speed: 'Instant',
-    description: 'Minimal latency and low token overhead for quick classroom summaries.'
+    description: 'Prior-generation lightweight model. Maintained for legacy compatibility.'
   },
   {
     id: 'gemini-3.8-pro',
@@ -514,8 +610,8 @@ export default function App() {
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('ai_apikey') || '');
   const [model, setModel] = useState(() => {
     const saved = localStorage.getItem('ai_model');
-    return (!saved || saved === 'gemini-1.5-flash' || saved === 'gemini-2.5-flash') 
-      ? 'gemini-3.5-flash-lite' 
+    return (!saved || saved === 'gemini-1.5-flash' || saved === 'gemini-2.0-flash' || saved === 'gemini-2.5-flash') 
+      ? 'gemini-3.8-flash-lite' 
       : saved;
   });
   const [customModel, setCustomModel] = useState(() => localStorage.getItem('ai_custom_model') || '');
@@ -523,7 +619,7 @@ export default function App() {
   const [showKey, setShowKey] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState({ checking: false, checked: false, available: false, latestVersion: '2.5.2', releaseUrl: '', downloadUrl: '', error: null, notes: '' });
+  const [updateStatus, setUpdateStatus] = useState({ checking: false, checked: false, available: false, latestVersion: '2.5.3', releaseUrl: '', downloadUrl: '', error: null, notes: '' });
   const [githubRepoInput, setGithubRepoInput] = useState(() => {
     const saved = localStorage.getItem('app_update_repo');
     if (!saved || saved.toLowerCase().includes('jamierussell') || saved.toLowerCase().includes('teachersummary')) {
@@ -533,7 +629,7 @@ export default function App() {
   });
   
   // Current app version constant
-  const CURRENT_APP_VERSION = '2.5.2';
+  const CURRENT_APP_VERSION = '2.5.3';
 
   // Education Stage State ('secondary' | 'primary')
   const [educationStage, setEducationStage] = useState(() => localStorage.getItem('ai_education_stage') || 'secondary');
@@ -578,6 +674,8 @@ export default function App() {
   // Template & Custom Prompt State
   const [selectedTemplate, setSelectedTemplate] = useState('lesson_plan');
   const [homeworkDuration, setHomeworkDuration] = useState(() => localStorage.getItem('ai_homework_duration') || '30');
+  const [presentationSlides, setPresentationSlides] = useState(() => localStorage.getItem('ai_presentation_slides') || '10');
+  const [exportOrientation, setExportOrientation] = useState(() => localStorage.getItem('ai_export_orientation') || 'portrait');
   const [customPrompt, setCustomPrompt] = useState('');
   
   // Generation & Output State
@@ -666,7 +764,13 @@ export default function App() {
     if (githubRepoInput) {
       localStorage.setItem('app_update_repo', githubRepoInput.trim());
     }
-  }, [provider, apiKey, model, customModel, inputMode, promptTopic, homeworkDuration, educationStage, detectedGeminiModels, detectedOpenAIModels, githubRepoInput]);
+    if (presentationSlides) {
+      localStorage.setItem('ai_presentation_slides', presentationSlides);
+    }
+    if (exportOrientation) {
+      localStorage.setItem('ai_export_orientation', exportOrientation);
+    }
+  }, [provider, apiKey, model, customModel, inputMode, promptTopic, homeworkDuration, presentationSlides, exportOrientation, educationStage, detectedGeminiModels, detectedOpenAIModels, githubRepoInput]);
 
   // Check for app updates against GitHub releases
   const handleCheckForUpdates = async (repoName = githubRepoInput) => {
@@ -751,7 +855,7 @@ export default function App() {
     if (nextProvider === 'gemini') {
       const topModel = (detectedGeminiModels && detectedGeminiModels.length > 0)
         ? (detectedGeminiModels.find(m => m.recommended) || detectedGeminiModels[0]).id
-        : 'gemini-3.5-flash-lite';
+        : 'gemini-3.8-flash-lite';
       setModel(topModel);
     } else {
       const topModel = (detectedOpenAIModels && detectedOpenAIModels.length > 0)
@@ -923,6 +1027,8 @@ export default function App() {
         : `You are tailoring this for a ${classYear} level class studying under the ${curriculum} framework. The student ability group is: ${learningFocus}. Incorporate secondary education pedagogical tricks, lesson timings, and specific checks for understanding suitable for this group.`;
       if (selectedTemplate === 'homework') {
         classContext += ` The homework must strictly fit within an estimated completion duration of ${homeworkDuration === '60' ? '1 hour (60 minutes)' : `${homeworkDuration} minutes`}. Ensure questions are realistic in length and provide clear student time management guidelines.`;
+      } else if (selectedTemplate === 'presentation') {
+        classContext += ` Target approximately ${presentationSlides || '8'} slides in total. Provide concise, projector-friendly bullet points and insightful teacher delivery notes for every slide.`;
       }
       const fullSystemPrompt = `${template.systemPrompt}\n\n[Context Adjustments]:\n${classContext}`;
       
@@ -931,10 +1037,10 @@ export default function App() {
       let userPromptText = '';
       if (inputMode === 'documents') {
         const aggregatedText = getAggregatedText();
-        userPromptText = template.userPrompt(aggregatedText, customPrompt, false, homeworkDuration);
+        userPromptText = template.userPrompt(aggregatedText, customPrompt, false, homeworkDuration, presentationSlides);
       } else {
         const coreTopic = promptTopic.trim() || (educationStage === 'primary' ? 'Primary School Curriculum Unit' : 'Secondary School Curriculum Unit');
-        userPromptText = template.userPrompt(coreTopic, customPrompt, true, homeworkDuration);
+        userPromptText = template.userPrompt(coreTopic, customPrompt, true, homeworkDuration, presentationSlides);
       }
 
       const activeModel = customModel.trim() || model;
@@ -1021,11 +1127,42 @@ export default function App() {
         .replace(/\s+/g, '_')
         .slice(0, 30);
       const filename = `JRUSS-${sanitizedTopic || selectedTemplate}-${Date.now()}.docx`;
-      await exportMarkdownToDocx(outputContent, filename);
+      await exportMarkdownToDocx(outputContent, filename, exportOrientation);
     } catch (err) {
       console.error('DocX Export failed:', err);
       // Fallback to rich HTML copy if docx generation encounters an unexpected error
       handleCopyRichText();
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!outputContent) return;
+    try {
+      const sanitizedTopic = (promptTopic || selectedTemplate)
+        .replace(/[^a-zA-Z0-9_\- ]/g, '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .slice(0, 30);
+      const filename = `JRUSS-${sanitizedTopic || selectedTemplate}-${Date.now()}.pdf`;
+      await exportMarkdownToPdf(outputContent, filename, exportOrientation);
+    } catch (err) {
+      console.error('PDF Export failed:', err);
+      handleCopyRichText();
+    }
+  };
+
+  const handleDownloadPptx = async () => {
+    if (!outputContent) return;
+    try {
+      const sanitizedTopic = (promptTopic || selectedTemplate)
+        .replace(/[^a-zA-Z0-9_\- ]/g, '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .slice(0, 30);
+      const filename = `JRUSS-${sanitizedTopic || 'Presentation'}-${Date.now()}.pptx`;
+      await exportMarkdownToPptx(outputContent, filename, promptTopic || 'Lesson Presentation');
+    } catch (err) {
+      console.error('PPTX Export failed:', err);
     }
   };
 
@@ -1165,7 +1302,7 @@ export default function App() {
                   educationStage === 'primary'
                     ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                     : 'bg-violet-500/20 text-violet-300 border-violet-500/30'
-                }`}>v2.5.2</span>
+                }`}>v{CURRENT_APP_VERSION}</span>
               </p>
             </div>
           </div>
@@ -1491,7 +1628,7 @@ export default function App() {
                     </div>
 
                     <div className="p-3 bg-teal-500/10 border border-teal-500/20 rounded-xl text-[11px] text-teal-200/90 leading-relaxed">
-                      💡 <strong>Prompt-Only Tip:</strong> Pick any blueprint on the right (Lesson Plan, Scheme of Work, Quiz, Vocabulary, Differentiated Resources, Homework, or Lesson Materials & Handouts). The AI synthesizes complete classroom resources matching your selected {educationStage === 'primary' ? 'primary' : 'secondary'} year level and curriculum.
+                      💡 <strong>Prompt-Only Tip:</strong> Pick any output blueprint on the right. The AI will craft complete classroom resources tailored directly to your {educationStage === 'primary' ? 'primary' : 'secondary'} year group and curriculum.
                     </div>
                   </div>
                 </SpotlightCard>
@@ -1567,6 +1704,51 @@ export default function App() {
                             <span className="text-xs font-bold leading-tight">{d.label}</span>
                             <span className={`text-[9px] leading-tight mt-0.5 ${isActive ? (educationStage === 'primary' ? 'text-amber-200' : 'text-purple-200') : 'text-slate-500'}`}>
                               {d.sub}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Presentation Slide Count Selector (Shown when PowerPoint Presentation is active) */}
+                {selectedTemplate === 'presentation' && (
+                  <div className={`mb-4 p-3.5 rounded-xl border ${
+                    educationStage === 'primary'
+                      ? 'bg-amber-950/20 border-amber-500/25'
+                      : 'bg-indigo-950/30 border-indigo-500/25'
+                  }`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 m-0 ${
+                        educationStage === 'primary' ? 'text-amber-200' : 'text-indigo-200'
+                      }`}>
+                        <Presentation className={`w-3.5 h-3.5 ${educationStage === 'primary' ? 'text-amber-400' : 'text-indigo-400'}`} />
+                        <span>Approximate Number of Slides</span>
+                      </label>
+                      <span className={`text-[10px] ${educationStage === 'primary' ? 'text-amber-300/70' : 'text-indigo-300/70'}`}>
+                        Calibrates presentation depth & length
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { id: '5', label: '5 Slides', sub: 'Mini Deck / Starter' },
+                        { id: '10', label: '10 Slides', sub: 'Standard Lesson' },
+                        { id: '15', label: '15 Slides', sub: 'In-Depth Lesson' },
+                        { id: '20', label: '20 Slides', sub: 'Comprehensive Unit' }
+                      ].map(s => {
+                        const isActive = presentationSlides === s.id;
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => setPresentationSlides(s.id)}
+                            className={`duration-pill flex-col items-start text-left justify-center py-2 px-2.5 ${isActive ? 'active' : ''}`}
+                          >
+                            <span className="text-xs font-bold leading-tight">{s.label}</span>
+                            <span className={`text-[9px] leading-tight mt-0.5 ${isActive ? (educationStage === 'primary' ? 'text-amber-200' : 'text-indigo-200') : 'text-slate-500'}`}>
+                              {s.sub}
                             </span>
                           </button>
                         );
@@ -1760,60 +1942,112 @@ export default function App() {
 
                 {/* Workspace Action Bar */}
                 {outputContent && (
-                  <div className="border-t border-white/10 pt-3 bg-transparent flex items-center justify-between gap-3 mt-4">
-                    <div className="text-[10px] text-slate-500">
-                      💡 Edits in the raw editor or table view will update the output document.
+                  <div className="border-t border-white/10 pt-3 bg-transparent flex flex-wrap items-center justify-between gap-3 mt-4">
+                    <div className="flex items-center gap-3">
+                      <div className="text-[10px] text-slate-500 hidden sm:block">
+                        💡 Edits in the raw editor or table view will update the output document.
+                      </div>
+
+                      {/* Portrait / Landscape orientation selector for export */}
+                      <div className="flex items-center bg-slate-900/90 border border-white/10 rounded-lg p-0.5 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => setExportOrientation('portrait')}
+                          className={`px-2 py-1 rounded font-medium transition ${
+                            exportOrientation === 'portrait'
+                              ? (educationStage === 'primary' ? 'bg-amber-600 text-white' : 'bg-violet-600 text-white')
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                          title="Page orientation: Portrait (standard document)"
+                        >
+                          Portrait
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExportOrientation('landscape')}
+                          className={`px-2 py-1 rounded font-medium transition ${
+                            exportOrientation === 'landscape'
+                              ? (educationStage === 'primary' ? 'bg-amber-600 text-white' : 'bg-violet-600 text-white')
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                          title="Page orientation: Landscape (wide tables / handouts)"
+                        >
+                          Landscape
+                        </button>
+                      </div>
                     </div>
                     
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {selectedTemplate !== 'lesson_materials' && (
                         <button
                           onClick={handleChainToMaterials}
-                          className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale shadow-sm focus:outline-none"
+                          className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale shadow-sm focus:outline-none transition shrink-0"
                           title="Transform this generated plan into complete student lesson materials and worksheets"
                         >
-                          <Layers className="w-3.5 h-3.5" />
-                          <span>Generate Student Materials From This</span>
+                          <Layers className="w-3.5 h-3.5 shrink-0" />
+                          <span>Student Materials</span>
+                        </button>
+                      )}
+
+                      {/* Download PPTX Presentation button if presentation template or slides generated */}
+                      {(selectedTemplate === 'presentation' || outputContent.includes('## Slide') || outputContent.includes('### Slide')) && (
+                        <button
+                          onClick={handleDownloadPptx}
+                          className="px-2.5 py-1.5 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale shadow-sm focus:outline-none transition shrink-0"
+                          title="Download real Microsoft PowerPoint (.pptx) presentation deck"
+                        >
+                          <Presentation className="w-3.5 h-3.5 shrink-0" />
+                          <span>Download PPTX</span>
                         </button>
                       )}
 
                       <button 
                         onClick={handleCopyRichText}
-                        className={`px-3 py-1.5 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale focus:outline-none transition ${
+                        className={`px-2.5 py-1.5 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale focus:outline-none transition shrink-0 ${
                           educationStage === 'primary' 
                             ? 'bg-amber-600 hover:bg-amber-500' 
                             : 'bg-violet-600 hover:bg-violet-500'
                         }`}
+                        title="Copy formatted text to clipboard (ready to paste into Microsoft Word or Google Docs)"
                       >
                         {copied ? (
                           <>
-                            <Check className="w-3.5 h-3.5" />
+                            <Check className="w-3.5 h-3.5 shrink-0" />
                             <span>Copied!</span>
                           </>
                         ) : (
                           <>
-                            <Copy className="w-3.5 h-3.5" />
-                            <span>Copy to Word / Doc</span>
+                            <Copy className="w-3.5 h-3.5 shrink-0" />
+                            <span>Copy Rich</span>
                           </>
                         )}
                       </button>
 
                       <button 
+                        onClick={handleDownloadPdf}
+                        className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale shadow-sm focus:outline-none transition shrink-0"
+                        title="Download formatted Adobe PDF (.pdf) file"
+                      >
+                        <FileText className="w-3.5 h-3.5 shrink-0" />
+                        <span>Download PDF</span>
+                      </button>
+
+                      <button 
                         onClick={handleDownloadDocx}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale shadow-sm focus:outline-none"
+                        className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale shadow-sm focus:outline-none transition shrink-0"
                         title="Download formatted Microsoft Word (.docx) document"
                       >
-                        <FileText className="w-3.5 h-3.5" />
-                        <span>Download DocX</span>
+                        <FileCheck className="w-3.5 h-3.5 shrink-0" />
+                        <span>DocX</span>
                       </button>
 
                       <button 
                         onClick={handleDownloadMarkdown}
-                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-white/5 text-slate-200 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale focus:outline-none"
+                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-white/5 text-slate-200 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale focus:outline-none transition shrink-0"
                         title="Download plain Markdown (.md) file"
                       >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Download MD</span>
+                        <Download className="w-3.5 h-3.5 shrink-0" />
+                        <span>MD</span>
                       </button>
                     </div>
                   </div>

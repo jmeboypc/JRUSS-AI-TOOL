@@ -5,7 +5,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1300,
     height: 850,
-    title: 'JRUSS AI TOOL - v2.5.2',
+    title: 'JRUSS AI TOOL - v2.5.3',
     icon: path.join(__dirname, 'icon.ico'),
     autoHideMenuBar: true,
     webPreferences: {

@@ -304,9 +304,11 @@ function markdownToWordXml(markdown) {
  * Creates and downloads a Microsoft Word (.docx) file from Markdown text
  * @param {string} markdown - The markdown content to convert
  * @param {string} fileName - Destination filename
+ * @param {string} orientation - 'portrait' or 'landscape'
  */
-export async function exportMarkdownToDocx(markdown, fileName = 'TeacherMaterials.docx') {
+export async function exportMarkdownToDocx(markdown, fileName = 'TeacherMaterials.docx', orientation = 'portrait') {
   const zip = new JSZip();
+  const isLandscape = orientation === 'landscape';
 
   // 1. [Content_Types].xml
   zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -346,12 +348,16 @@ export async function exportMarkdownToDocx(markdown, fileName = 'TeacherMaterial
 
   // 5. word/document.xml
   const bodyXml = markdownToWordXml(markdown);
+  const pageSizeXml = isLandscape
+    ? '<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>'
+    : '<w:pgSz w:w="11906" w:h="16838"/>';
+
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
     ${bodyXml}
     <w:sectPr>
-      <w:pgSz w:w="11906" w:h="16838"/>
+      ${pageSizeXml}
       <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/>
     </w:sectPr>
   </w:body>

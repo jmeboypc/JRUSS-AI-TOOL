@@ -218,7 +218,6 @@ export async function fetchAvailableGeminiModels(apiKey) {
         speed = 'Deep Reasoning';
       }
 
-      const is35 = lower.includes('3.5') || lower.includes('3-5');
       const is38 = lower.includes('3.8') || lower.includes('3-8');
 
       return {
@@ -230,18 +229,25 @@ export async function fetchAvailableGeminiModels(apiKey) {
         speed,
         isFlash,
         isPro,
-        recommended: id === 'gemini-3.5-flash-lite' || id === 'gemini-3.5-flash' || (isFlash && is35) || id === 'gemini-3.8-flash'
+        recommended: id === 'gemini-3.8-flash-lite' || id === 'gemini-3.8-flash' || id === 'gemini-3.5-flash-lite' || (isFlash && is38)
       };
     });
 
-  // Sort so newest Flash-Lite / Flash (3.5 / 3.8) are on top, followed by other Flash, then Pro, then others
+  // Sort so newest Flash-Lite / Flash (3.8 / 3.5) are on top, followed by other Flash, then Pro, then others
   contentModels.sort((a, b) => {
+    if (a.id === 'gemini-3.8-flash-lite') return -1;
+    if (b.id === 'gemini-3.8-flash-lite') return 1;
+    if (a.id === 'gemini-3.8-flash') return -1;
+    if (b.id === 'gemini-3.8-flash') return 1;
     if (a.id === 'gemini-3.5-flash-lite') return -1;
     if (b.id === 'gemini-3.5-flash-lite') return 1;
     if (a.id === 'gemini-3.5-flash') return -1;
     if (b.id === 'gemini-3.5-flash') return 1;
-    if (a.id === 'gemini-3.8-flash') return -1;
-    if (b.id === 'gemini-3.8-flash') return 1;
+
+    const a38 = a.id.includes('3.8') || a.id.includes('3-8');
+    const b38 = b.id.includes('3.8') || b.id.includes('3-8');
+    if (a38 && a.isFlash && !(b38 && b.isFlash)) return -1;
+    if (!(a38 && a.isFlash) && b38 && b.isFlash) return 1;
 
     const a35 = a.id.includes('3.5') || a.id.includes('3-5');
     const b35 = b.id.includes('3.5') || b.id.includes('3-5');
