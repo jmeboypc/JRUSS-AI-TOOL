@@ -18,66 +18,138 @@ function escapeXml(unsafe) {
 }
 
 /**
- * Converts inline Markdown (bold, italic, code) into Word XML run elements
+ * Pre-processes text to clean raw markdown artifacts, checkboxes, and inline HTML
  */
-function formatInlineRuns(text) {
+function cleanMarkdownArtifacts(text) {
+  if (!text) return '';
+  return text
+    // Replace checkboxes
+    .replace(/\[\s\]/g, '☐ ')
+    .replace(/\[[xX]\]/g, '☑ ')
+    // Replace <br> or <br/> with newline
+    .replace(/<br\s*\/?>/gi, '\n')
+    // Remove HTML comments
+    .replace(/<!--[\s\S]*?-->/g, '')
+    // Strip image syntax ![alt](url) -> alt
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+    // Strip HTML tags leaving inner text
+    .replace(/<\/?(?:span|div|p|b|i|strong|em|code)[^>]*>/gi, '');
+}
+
+/**
+ * Converts inline Markdown (bold, italic, code, strikethrough, links) into Word XML run elements.
+ * Strips all residual markdown characters so no raw syntax leaks into Word documents.
+ * 
+ * @param {string} text - Raw inline text with Markdown
+ * @param {object} baseStyle - Optional default typography (font, sz, color, bold)
+ * @returns {string} Word OpenXML runs
+ */
+function formatInlineRuns(text, baseStyle = {}) {
   if (!text) return '';
 
+  const cleanText = cleanMarkdownArtifacts(text);
+
+  // Regex matching inline markdown elements:
+  // 1: Bold-Italic (***...*** or ___...___)
+  // 2: Bold (**...** or __...__)
+  // 3: Italic (*...* or _..._)
+  // 4: Strikethrough (~~...~~)
+  // 5: Inline code (`...`)
+  // 6: Markdown link ([text](url))
+  // 7: Explicit line breaks (\n)
+  const regex = /(\*\*\*[\s\S]+?\*\*\*|___[\s\S]+?___|\*\*[\s\S]+?\*\*|__[\s\S]+?__|(?<!\w)\*[^*\n]+?\*(?!\w)|(?<!\w)_[^_\n]+?_(?!\w)|~~[\s\S]+?~~|`[^`\n]+`|\[[^\]]+\]\([^)]+\)|\n)/g;
+
   const tokens = [];
-  const regex = /(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
   let lastIndex = 0;
   let match;
 
-  while ((match = regex.exec(text)) !== null) {
+  while ((match = regex.exec(cleanText)) !== null) {
     if (match.index > lastIndex) {
-      tokens.push({ type: 'text', val: text.substring(lastIndex, match.index) });
+      tokens.push({ type: 'text', val: cleanText.substring(lastIndex, match.index) });
     }
     const m = match[0];
-    if (m.startsWith('***') && m.endsWith('***')) {
+    if (m === '\n') {
+      tokens.push({ type: 'break' });
+    } else if ((m.startsWith('***') && m.endsWith('***')) || (m.startsWith('___') && m.endsWith('___'))) {
       tokens.push({ type: 'bold-italic', val: m.slice(3, -3) });
-    } else if (m.startsWith('**') && m.endsWith('**')) {
+    } else if ((m.startsWith('**') && m.endsWith('**')) || (m.startsWith('__') && m.endsWith('__'))) {
       tokens.push({ type: 'bold', val: m.slice(2, -2) });
-    } else if (m.startsWith('*') && m.endsWith('*')) {
+    } else if ((m.startsWith('*') && m.endsWith('*')) || (m.startsWith('_') && m.endsWith('_'))) {
       tokens.push({ type: 'italic', val: m.slice(1, -1) });
+    } else if (m.startsWith('~~') && m.endsWith('~~')) {
+      tokens.push({ type: 'strike', val: m.slice(2, -2) });
     } else if (m.startsWith('`') && m.endsWith('`')) {
       tokens.push({ type: 'code', val: m.slice(1, -1) });
+    } else if (m.startsWith('[')) {
+      const linkMatch = m.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (linkMatch) {
+        tokens.push({ type: 'link', val: linkMatch[1], href: linkMatch[2] });
+      } else {
+        tokens.push({ type: 'text', val: m });
+      }
     }
     lastIndex = regex.lastIndex;
   }
 
-  if (lastIndex < text.length) {
-    tokens.push({ type: 'text', val: text.substring(lastIndex) });
+  if (lastIndex < cleanText.length) {
+    tokens.push({ type: 'text', val: cleanText.substring(lastIndex) });
   }
 
+  const baseRPr = [];
+  if (baseStyle.font) baseRPr.push(`<w:rFonts w:ascii="${baseStyle.font}" w:hAnsi="${baseStyle.font}"/>`);
+  if (baseStyle.bold) baseRPr.push('<w:b/>');
+  if (baseStyle.color) baseRPr.push(`<w:color w:val="${baseStyle.color}"/>`);
+  if (baseStyle.sz) baseRPr.push(`<w:sz w:val="${baseStyle.sz}"/>`);
+  const baseRPrXml = baseRPr.join('');
+
   return tokens.map(tok => {
-    const escaped = escapeXml(tok.val);
+    if (tok.type === 'break') {
+      return '<w:r><w:br/></w:r>';
+    }
+
+    // Strip any residual stray markdown tokens from value so asterisks never leak
+    const cleanVal = (tok.val || '').replace(/[*_`~]/g, '');
+    const escaped = escapeXml(cleanVal);
+
     switch (tok.type) {
       case 'bold':
-        return `<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${escaped}</w:t></w:r>`;
+        return `<w:r><w:rPr>${baseRPrXml}<w:b/></w:rPr><w:t xml:space="preserve">${escaped}</w:t></w:r>`;
       case 'italic':
-        return `<w:r><w:rPr><w:i/></w:rPr><w:t xml:space="preserve">${escaped}</w:t></w:r>`;
+        return `<w:r><w:rPr>${baseRPrXml}<w:i/></w:rPr><w:t xml:space="preserve">${escaped}</w:t></w:r>`;
       case 'bold-italic':
-        return `<w:r><w:rPr><w:b/><w:i/></w:rPr><w:t xml:space="preserve">${escaped}</w:t></w:r>`;
+        return `<w:r><w:rPr>${baseRPrXml}<w:b/><w:i/></w:rPr><w:t xml:space="preserve">${escaped}</w:t></w:r>`;
+      case 'strike':
+        return `<w:r><w:rPr>${baseRPrXml}<w:strike/></w:rPr><w:t xml:space="preserve">${escaped}</w:t></w:r>`;
       case 'code':
         return `<w:r><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/><w:color w:val="7C3AED"/><w:shd w:val="clear" w:color="auto" w:fill="F3F4F6"/></w:rPr><w:t xml:space="preserve">${escaped}</w:t></w:r>`;
+      case 'link':
+        return `<w:r><w:rPr>${baseRPrXml}<w:color w:val="2563EB"/><w:u w:val="single"/></w:rPr><w:t xml:space="preserve">${escaped}</w:t></w:r>`;
       default:
-        return `<w:r><w:t xml:space="preserve">${escaped}</w:t></w:r>`;
+        // Plain text: strip stray unparsed markdown if any
+        return `<w:r>${baseRPrXml ? `<w:rPr>${baseRPrXml}</w:rPr>` : ''}<w:t xml:space="preserve">${escapeXml(cleanVal)}</w:t></w:r>`;
     }
   }).join('');
 }
 
 /**
- * Builds the Word OpenXML document content from markdown lines
+ * Builds the Word OpenXML document content from markdown lines, converting all Markdown
+ * syntax into Word structures (headings, tables, lists, quotes, dividers) without leaving
+ * any markdown symbols behind.
  */
 function markdownToWordXml(markdown) {
-  const lines = markdown.split(/\r?\n/);
+  let cleaned = (markdown || '').trim();
+  // Strip outer markdown fences if the whole response is enclosed in ```markdown ... ```
+  cleaned = cleaned.replace(/^```(?:markdown|md)?\s*\r?\n([\s\S]*?)\r?\n```\s*$/i, '$1');
+
+  const lines = cleaned.split(/\r?\n/);
   const elements = [];
   let inTable = false;
   let tableRows = [];
+  let inCodeBlock = false;
 
   const flushTable = () => {
     if (!inTable || tableRows.length === 0) return;
-    
+
     let tableXml = `<w:tbl>
       <w:tblPr>
         <w:tblStyle w:val="TableGrid"/>
@@ -97,7 +169,6 @@ function markdownToWordXml(markdown) {
       tableXml += `<w:tr>`;
       row.forEach(cell => {
         const bg = isHeader ? `<w:shd w:val="clear" w:color="auto" w:fill="F1F5F9"/>` : '';
-        const bold = isHeader ? `<w:b/>` : '';
         tableXml += `<w:tc>
           <w:tcPr>
             ${bg}
@@ -112,10 +183,7 @@ function markdownToWordXml(markdown) {
             <w:pPr>
               <w:spacing w:after="0" w:line="240" w:lineRule="auto"/>
             </w:pPr>
-            <w:r>
-              <w:rPr>${bold}</w:rPr>
-              <w:t>${escapeXml(cell)}</w:t>
-            </w:r>
+            ${formatInlineRuns(cell, { bold: isHeader })}
           </w:p>
         </w:tc>`;
       });
@@ -131,6 +199,33 @@ function markdownToWordXml(markdown) {
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i];
     const trimmed = rawLine.trim();
+
+    // Code block toggle (```...)
+    if (/^```/.test(trimmed)) {
+      if (inTable) flushTable();
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+
+    if (inCodeBlock) {
+      elements.push(`<w:p>
+        <w:pPr>
+          <w:shd w:val="clear" w:color="auto" w:fill="F8FAFC"/>
+          <w:pBdr><w:left w:val="single" w:sz="12" w:space="8" w:color="CBD5E1"/></w:pBdr>
+          <w:ind w:left="200" w:right="100"/>
+          <w:spacing w:after="40" w:line="220" w:lineRule="auto"/>
+        </w:pPr>
+        <w:r>
+          <w:rPr>
+            <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>
+            <w:color w:val="334155"/>
+            <w:sz w:val="20"/>
+          </w:rPr>
+          <w:t xml:space="preserve">${escapeXml(rawLine)}</w:t>
+        </w:r>
+      </w:p>`);
+      continue;
+    }
 
     // Table row detection
     if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
@@ -157,66 +252,55 @@ function markdownToWordXml(markdown) {
       continue;
     }
 
-    // Headings
-    if (trimmed.startsWith('# ')) {
+    // Headings (H1 to H6)
+    const headingMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      // Strip trailing #s
+      const titleContent = headingMatch[2].replace(/\s+#+$/, '');
+
+      let styleName = 'Heading1';
+      let font = 'Georgia';
+      let sz = '36';
+      let color = '1E293B';
+      let before = '240';
+      let after = '120';
+
+      if (level === 2) {
+        styleName = 'Heading2';
+        font = 'Georgia';
+        sz = '28';
+        color = '334155';
+        before = '200';
+        after = '80';
+      } else if (level === 3) {
+        styleName = 'Heading3';
+        font = 'Calibri';
+        sz = '24';
+        color = '475569';
+        before = '160';
+        after = '60';
+      } else if (level >= 4) {
+        styleName = `Heading${level}`;
+        font = 'Calibri';
+        sz = '22';
+        color = '64748B';
+        before = '120';
+        after = '40';
+      }
+
       elements.push(`<w:p>
         <w:pPr>
-          <w:pStyle w:val="Heading1"/>
-          <w:spacing w:before="240" w:after="120"/>
+          <w:pStyle w:val="${styleName}"/>
+          <w:spacing w:before="${before}" w:after="${after}"/>
         </w:pPr>
-        <w:r>
-          <w:rPr>
-            <w:rFonts w:ascii="Georgia" w:hAnsi="Georgia"/>
-            <w:b/>
-            <w:color w:val="1E293B"/>
-            <w:sz w:val="36"/>
-          </w:rPr>
-          <w:t>${escapeXml(trimmed.slice(2))}</w:t>
-        </w:r>
+        ${formatInlineRuns(titleContent, { font, sz, color, bold: true })}
       </w:p>`);
       continue;
     }
 
-    if (trimmed.startsWith('## ')) {
-      elements.push(`<w:p>
-        <w:pPr>
-          <w:pStyle w:val="Heading2"/>
-          <w:spacing w:before="200" w:after="80"/>
-        </w:pPr>
-        <w:r>
-          <w:rPr>
-            <w:rFonts w:ascii="Georgia" w:hAnsi="Georgia"/>
-            <w:b/>
-            <w:color w:val="334155"/>
-            <w:sz w:val="28"/>
-          </w:rPr>
-          <w:t>${escapeXml(trimmed.slice(3))}</w:t>
-        </w:r>
-      </w:p>`);
-      continue;
-    }
-
-    if (trimmed.startsWith('### ')) {
-      elements.push(`<w:p>
-        <w:pPr>
-          <w:pStyle w:val="Heading3"/>
-          <w:spacing w:before="160" w:after="60"/>
-        </w:pPr>
-        <w:r>
-          <w:rPr>
-            <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
-            <w:b/>
-            <w:color w:val="475569"/>
-            <w:sz w:val="24"/>
-          </w:rPr>
-          <w:t>${escapeXml(trimmed.slice(4))}</w:t>
-        </w:r>
-      </w:p>`);
-      continue;
-    }
-
-    // Horizontal Rule
-    if (/^(\*\*\*|---|___)$/.test(trimmed)) {
+    // Horizontal Rule (---, ***, ___, - - -, etc.)
+    if (/^(?:[-*_]\s*){3,}$/.test(trimmed)) {
       elements.push(`<w:p>
         <w:pPr>
           <w:pBdr>
@@ -229,8 +313,11 @@ function markdownToWordXml(markdown) {
     }
 
     // Blockquote
-    if (trimmed.startsWith('> ')) {
-      const quoteText = trimmed.slice(2);
+    if (/^>+\s*/.test(trimmed)) {
+      let quoteText = trimmed.replace(/^>+\s*/, '');
+      // Strip markdown alert style tags: [!NOTE], [!TIP], etc.
+      quoteText = quoteText.replace(/^\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i, '');
+
       elements.push(`<w:p>
         <w:pPr>
           <w:pBdr>
@@ -240,20 +327,28 @@ function markdownToWordXml(markdown) {
           <w:ind w:left="200" w:right="100"/>
           <w:spacing w:before="80" w:after="80"/>
         </w:pPr>
-        <w:r>
-          <w:rPr><w:i/><w:color w:val="475569"/></w:rPr>
-          <w:t xml:space="preserve">${escapeXml(quoteText)}</w:t>
-        </w:r>
+        ${formatInlineRuns(quoteText, { color: '475569' })}
       </w:p>`);
       continue;
     }
 
-    // Bullet lists
-    if (/^[-*+]\s+/.test(trimmed)) {
-      const itemText = trimmed.replace(/^[-*+]\s+/, '');
+    // Bullet lists (including nested bullets with leading whitespace and checkboxes)
+    const bulletMatch = rawLine.match(/^(\s*)([-*+]|\u2022)\s+(.*)$/);
+    if (bulletMatch) {
+      const indentSpaces = bulletMatch[1].length;
+      const leftIndent = 400 + Math.floor(indentSpaces / 2) * 200;
+      let itemText = bulletMatch[3];
+
+      // Checkbox support
+      if (/^\[\s\]\s*/.test(itemText)) {
+        itemText = '☐ ' + itemText.replace(/^\[\s\]\s*/, '');
+      } else if (/^\[[xX]\]\s*/.test(itemText)) {
+        itemText = '☑ ' + itemText.replace(/^\[[xX]\]\s*/, '');
+      }
+
       elements.push(`<w:p>
         <w:pPr>
-          <w:ind w:left="400" w:hanging="200"/>
+          <w:ind w:left="${leftIndent}" w:hanging="200"/>
           <w:spacing w:after="60"/>
         </w:pPr>
         <w:r>
@@ -265,14 +360,16 @@ function markdownToWordXml(markdown) {
       continue;
     }
 
-    // Numbered lists
-    const numMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+    // Numbered lists (e.g. "1. " or "1) ")
+    const numMatch = rawLine.match(/^(\s*)(\d+)[.)]\s+(.*)$/);
     if (numMatch) {
-      const num = numMatch[1];
-      const itemText = numMatch[2];
+      const indentSpaces = numMatch[1].length;
+      const leftIndent = 400 + Math.floor(indentSpaces / 2) * 200;
+      const num = numMatch[2];
+      const itemText = numMatch[3];
       elements.push(`<w:p>
         <w:pPr>
-          <w:ind w:left="400" w:hanging="250"/>
+          <w:ind w:left="${leftIndent}" w:hanging="250"/>
           <w:spacing w:after="60"/>
         </w:pPr>
         <w:r>
@@ -289,7 +386,7 @@ function markdownToWordXml(markdown) {
       <w:pPr>
         <w:spacing w:after="120" w:line="276" w:lineRule="auto"/>
       </w:pPr>
-      ${formatInlineRuns(rawLine)}
+      ${formatInlineRuns(trimmed)}
     </w:p>`);
   }
 
@@ -344,6 +441,42 @@ export async function exportMarkdownToDocx(markdown, fileName = 'TeacherMaterial
       </w:rPr>
     </w:rPrDefault>
   </w:docDefaults>
+  <w:style w:type="paragraph" w:styleId="Heading1">
+    <w:name w:val="heading 1"/>
+    <w:rPr>
+      <w:rFonts w:ascii="Georgia" w:hAnsi="Georgia"/>
+      <w:b/>
+      <w:color w:val="1E293B"/>
+      <w:sz w:val="36"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading2">
+    <w:name w:val="heading 2"/>
+    <w:rPr>
+      <w:rFonts w:ascii="Georgia" w:hAnsi="Georgia"/>
+      <w:b/>
+      <w:color w:val="334155"/>
+      <w:sz w:val="28"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading3">
+    <w:name w:val="heading 3"/>
+    <w:rPr>
+      <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
+      <w:b/>
+      <w:color w:val="475569"/>
+      <w:sz w:val="24"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="Heading4">
+    <w:name w:val="heading 4"/>
+    <w:rPr>
+      <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
+      <w:b/>
+      <w:color w:val="64748B"/>
+      <w:sz w:val="22"/>
+    </w:rPr>
+  </w:style>
 </w:styles>`);
 
   // 5. word/document.xml

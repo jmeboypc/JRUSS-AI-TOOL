@@ -18,7 +18,7 @@ export default function StarBorder({
         }}
       />
       {/* Content wrapper with matching borders */}
-      <div className="relative z-10 w-full h-full rounded-[15px] bg-[#0b0f19]/90 backdrop-blur-md">
+      <div className="relative z-10 w-full h-full rounded-[15px] bg-[#0b0f19]/90 backdrop-blur-md flex flex-col">
         {children}
       </div>
     </div>

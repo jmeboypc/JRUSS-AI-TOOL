@@ -1,14 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Upload, FileText, Settings, Key, Sparkles, Copy, Check, Download, 
-  Trash2, Eye, FileCode, AlertCircle, 
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Upload, FileText, Settings, Key, Sparkles, Copy, Check, Download,
+  Trash2, Eye, FileCode, AlertCircle,
   BookOpen, Plus, Award, RefreshCw, FileSpreadsheet, EyeOff, LayoutTemplate,
   Zap, Info, ExternalLink, Lightbulb, Search, CheckCircle2, HelpCircle,
   Clock, GraduationCap, Layers, FileCheck,
-  ClipboardList, CloudDownload, ShieldAlert, Presentation
+  ClipboardList, CloudDownload, ShieldAlert, Presentation,
+  ChevronDown, ChevronUp, Bot
 } from 'lucide-react';
 import { parseDocument } from './utils/parsers';
-import { generateContent, fetchAvailableGeminiModels, fetchAvailableOpenAIModels } from './utils/ai';
+import { 
+  generateContent, 
+  fetchAvailableGeminiModels, 
+  fetchAvailableOpenAIModels, 
+  fetchAvailableClaudeModels,
+  CLAUDE_DEFAULT_PRESETS 
+} from './utils/ai';
 import SpotlightCard from './components/SpotlightCard';
 import DecryptedText from './components/DecryptedText';
 import StarBorder from './components/StarBorder';
@@ -519,6 +526,14 @@ const GEMINI_MODELS = [
     description: 'Prior-generation lightweight model. Maintained for legacy compatibility.'
   },
   {
+    id: 'gemini-4-argon',
+    name: 'Gemini 4 Argon',
+    tier: 'paid',
+    badge: 'Flagship Reasoning (Gemini 4 Argon)',
+    speed: 'Deep Reasoning',
+    description: 'Google’s next-gen flagship reasoning model designed for complex multi-step curriculum planning, long-horizon scheme design, and deep subject mastery.'
+  },
+  {
     id: 'gemini-3.8-pro',
     name: 'Gemini 3.8 Pro',
     tier: 'paid',
@@ -562,6 +577,8 @@ const OPENAI_MODELS = [
     description: 'Top-tier OpenAI model with advanced reasoning for senior secondary curriculums.'
   }
 ];
+
+const CLAUDE_MODELS = CLAUDE_DEFAULT_PRESETS;
 
 const INSPIRATION_CHIPS_SECONDARY = [
   { label: '🧪 Practical Lab / Experiment', text: 'Include hands-on experiment steps, lab safety precautions, and required apparatus list.' },
@@ -610,16 +627,19 @@ export default function App() {
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('ai_apikey') || '');
   const [model, setModel] = useState(() => {
     const saved = localStorage.getItem('ai_model');
-    return (!saved || saved === 'gemini-1.5-flash' || saved === 'gemini-2.0-flash' || saved === 'gemini-2.5-flash') 
-      ? 'gemini-3.8-flash-lite' 
+    return (!saved || saved === 'gemini-1.5-flash' || saved === 'gemini-2.0-flash' || saved === 'gemini-2.5-flash')
+      ? 'gemini-3.8-flash-lite'
       : saved;
   });
   const [customModel, setCustomModel] = useState(() => localStorage.getItem('ai_custom_model') || '');
   const [geminiTierFilter, setGeminiTierFilter] = useState('all'); // 'all', 'free', 'paid'
   const [showKey, setShowKey] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showGeminiGuide, setShowGeminiGuide] = useState(() => !localStorage.getItem('ai_apikey'));
+  const [showOpenAiGuide, setShowOpenAiGuide] = useState(false);
+  const [showClaudeGuide, setShowClaudeGuide] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState({ checking: false, checked: false, available: false, latestVersion: '2.5.3', releaseUrl: '', downloadUrl: '', error: null, notes: '' });
+  const [updateStatus, setUpdateStatus] = useState({ checking: false, checked: false, available: false, latestVersion: '2.5.4', releaseUrl: '', downloadUrl: '', error: null, notes: '' });
   const [githubRepoInput, setGithubRepoInput] = useState(() => {
     const saved = localStorage.getItem('app_update_repo');
     if (!saved || saved.toLowerCase().includes('jamierussell') || saved.toLowerCase().includes('teachersummary')) {
@@ -627,13 +647,13 @@ export default function App() {
     }
     return saved;
   });
-  
+
   // Current app version constant
-  const CURRENT_APP_VERSION = '2.5.3';
+  const CURRENT_APP_VERSION = '2.5.4';
 
   // Education Stage State ('secondary' | 'primary')
   const [educationStage, setEducationStage] = useState(() => localStorage.getItem('ai_education_stage') || 'secondary');
-  
+
   // Live Detected Models State (from API key)
   const [detectedGeminiModels, setDetectedGeminiModels] = useState(() => {
     try {
@@ -646,6 +666,14 @@ export default function App() {
   const [detectedOpenAIModels, setDetectedOpenAIModels] = useState(() => {
     try {
       const saved = localStorage.getItem('ai_detected_openai_models');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [detectedClaudeModels, setDetectedClaudeModels] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ai_detected_claude_models');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -665,19 +693,19 @@ export default function App() {
   });
   const [curriculum, setCurriculum] = useState('UK National Curriculum');
   const [learningFocus, setLearningFocus] = useState('Mixed Ability');
-  
+
   // Files state
   const [files, setFiles] = useState([]);
   const [dragActive, setDragActive] = useState(false);
   const [previewingFile, setPreviewingFile] = useState(null);
-  
+
   // Template & Custom Prompt State
   const [selectedTemplate, setSelectedTemplate] = useState('lesson_plan');
   const [homeworkDuration, setHomeworkDuration] = useState(() => localStorage.getItem('ai_homework_duration') || '30');
   const [presentationSlides, setPresentationSlides] = useState(() => localStorage.getItem('ai_presentation_slides') || '10');
   const [exportOrientation, setExportOrientation] = useState(() => localStorage.getItem('ai_export_orientation') || 'portrait');
   const [customPrompt, setCustomPrompt] = useState('');
-  
+
   // Generation & Output State
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState('');
@@ -694,6 +722,10 @@ export default function App() {
   const availableOpenAIList = (detectedOpenAIModels && detectedOpenAIModels.length > 0)
     ? detectedOpenAIModels
     : OPENAI_MODELS;
+
+  const availableClaudeList = (detectedClaudeModels && detectedClaudeModels.length > 0)
+    ? detectedClaudeModels
+    : CLAUDE_MODELS;
 
   // Active Model Lookups & Tier Information
   const currentGeminiModel = availableGeminiList.find(m => m.id === model) || {
@@ -712,6 +744,15 @@ export default function App() {
     badge: 'Standard',
     speed: 'Standard',
     description: 'Active OpenAI model'
+  };
+
+  const currentClaudeModel = availableClaudeList.find(m => m.id === model) || {
+    id: model,
+    name: model,
+    tier: 'premium',
+    badge: 'Claude (Beta)',
+    speed: 'Fast',
+    description: 'Active Claude model (Beta)'
   };
 
   const isFreeTier = provider === 'gemini' && (customModel.trim() ? !customModel.toLowerCase().includes('pro') : currentGeminiModel.tier === 'free');
@@ -761,6 +802,11 @@ export default function App() {
     } else {
       localStorage.removeItem('ai_detected_openai_models');
     }
+    if (detectedClaudeModels) {
+      localStorage.setItem('ai_detected_claude_models', JSON.stringify(detectedClaudeModels));
+    } else {
+      localStorage.removeItem('ai_detected_claude_models');
+    }
     if (githubRepoInput) {
       localStorage.setItem('app_update_repo', githubRepoInput.trim());
     }
@@ -770,7 +816,7 @@ export default function App() {
     if (exportOrientation) {
       localStorage.setItem('ai_export_orientation', exportOrientation);
     }
-  }, [provider, apiKey, model, customModel, inputMode, promptTopic, homeworkDuration, presentationSlides, exportOrientation, educationStage, detectedGeminiModels, detectedOpenAIModels, githubRepoInput]);
+  }, [provider, apiKey, model, customModel, inputMode, promptTopic, homeworkDuration, presentationSlides, exportOrientation, educationStage, detectedGeminiModels, detectedOpenAIModels, detectedClaudeModels, githubRepoInput]);
 
   // Check for app updates against GitHub releases
   const handleCheckForUpdates = async (repoName = githubRepoInput) => {
@@ -807,7 +853,7 @@ export default function App() {
       const tagName = (releaseData.tag_name || '').replace(/^v/i, '').trim();
       const notes = releaseData.body || 'No release notes provided.';
       const releaseUrl = releaseData.html_url || `https://github.com/${cleanRepo}/releases`;
-      
+
       // Look for attached .msi or setup file in assets
       const assets = releaseData.assets || [];
       const msiAsset = assets.find(a => a.name && (a.name.endsWith('.msi') || a.name.endsWith('.exe')));
@@ -857,6 +903,11 @@ export default function App() {
         ? (detectedGeminiModels.find(m => m.recommended) || detectedGeminiModels[0]).id
         : 'gemini-3.8-flash-lite';
       setModel(topModel);
+    } else if (nextProvider === 'claude') {
+      const topModel = (detectedClaudeModels && detectedClaudeModels.length > 0)
+        ? detectedClaudeModels[0].id
+        : 'claude-3-7-sonnet-latest';
+      setModel(topModel);
     } else {
       const topModel = (detectedOpenAIModels && detectedOpenAIModels.length > 0)
         ? detectedOpenAIModels[0].id
@@ -864,6 +915,8 @@ export default function App() {
       setModel(topModel);
     }
   };
+
+  const autoDetectTimeoutRef = useRef(null);
 
   // Live model detection via API key
   const handleDetectModels = async (keyToUse = apiKey, provToUse = provider) => {
@@ -874,17 +927,25 @@ export default function App() {
     }
 
     setIsDetectingModels(true);
-    setDetectStatus(null);
+    setDetectStatus({
+      type: 'info',
+      message: provToUse === 'gemini'
+        ? 'Detecting active Gemini models from Google...'
+        : provToUse === 'claude'
+        ? 'Detecting active Claude models from Anthropic...'
+        : 'Detecting active models from OpenAI...'
+    });
 
     try {
       if (provToUse === 'gemini') {
         const liveModels = await fetchAvailableGeminiModels(trimmedKey);
         setDetectedGeminiModels(liveModels);
+        const hasArgon = liveModels.some(m => m.id.toLowerCase().includes('argon'));
         setDetectStatus({
           type: 'success',
-          message: `Key verified! ${liveModels.length} active models detected from Google.`
+          message: `Key verified! ${liveModels.length} active models detected from Google${hasArgon ? ' (including Gemini 4 Argon & Flash models)' : ''}.`
         });
-        
+
         // If current model isn't in detected models, select the recommended Flash model
         const hasCurrentModel = liveModels.some(m => m.id === model);
         if (!hasCurrentModel) {
@@ -892,6 +953,17 @@ export default function App() {
           if (recommended) {
             setModel(recommended.id);
           }
+        }
+      } else if (provToUse === 'claude') {
+        const liveModels = await fetchAvailableClaudeModels(trimmedKey);
+        setDetectedClaudeModels(liveModels);
+        setDetectStatus({
+          type: 'success',
+          message: `Key verified! ${liveModels.length} active Claude models ready (Beta).`
+        });
+        const hasCurrentModel = liveModels.some(m => m.id === model);
+        if (!hasCurrentModel && liveModels.length > 0) {
+          setModel(liveModels[0].id);
         }
       } else {
         const liveModels = await fetchAvailableOpenAIModels(trimmedKey);
@@ -912,6 +984,54 @@ export default function App() {
       });
     } finally {
       setIsDetectingModels(false);
+    }
+  };
+
+  // Instant auto-detection on clipboard paste
+  const handleApiKeyPaste = (e) => {
+    const pastedText = e.clipboardData ? e.clipboardData.getData('text').trim() : '';
+    if (pastedText && pastedText.length >= 15) {
+      setApiKey(pastedText);
+
+      // Smart provider detection from API key prefix
+      let targetProvider = provider;
+      if (pastedText.startsWith('sk-ant-')) {
+        targetProvider = 'claude';
+        setProvider('claude');
+      } else if (pastedText.startsWith('AIza')) {
+        targetProvider = 'gemini';
+        setProvider('gemini');
+      } else if (pastedText.startsWith('sk-') && !pastedText.startsWith('sk-ant-')) {
+        targetProvider = 'openai';
+        setProvider('openai');
+      }
+
+      if (autoDetectTimeoutRef.current) clearTimeout(autoDetectTimeoutRef.current);
+      // Run detection immediately on paste
+      handleDetectModels(pastedText, targetProvider);
+    }
+  };
+
+  // Auto-detection on input changes (e.g. context-menu paste or autofill)
+  const handleApiKeyChange = (e) => {
+    const val = e.target.value;
+    setApiKey(val);
+    setDetectStatus(null);
+    const trimmed = val.trim();
+    if (trimmed.length >= 25 && (trimmed.startsWith('AIza') || trimmed.startsWith('sk-'))) {
+      let targetProvider = provider;
+      if (trimmed.startsWith('sk-ant-')) {
+        targetProvider = 'claude';
+        setProvider('claude');
+      } else if (trimmed.startsWith('AIza')) {
+        targetProvider = 'gemini';
+        setProvider('gemini');
+      }
+
+      if (autoDetectTimeoutRef.current) clearTimeout(autoDetectTimeoutRef.current);
+      autoDetectTimeoutRef.current = setTimeout(() => {
+        handleDetectModels(trimmed, targetProvider);
+      }, 400);
     }
   };
 
@@ -939,7 +1059,7 @@ export default function App() {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       await handleFilesAdded(e.dataTransfer.files);
     }
@@ -953,7 +1073,7 @@ export default function App() {
 
   const handleFilesAdded = async (fileList) => {
     const newFiles = Array.from(fileList);
-    
+
     for (let f of newFiles) {
       const fileId = `${f.name}-${f.size}-${Date.now()}`;
       const placeholder = {
@@ -964,16 +1084,16 @@ export default function App() {
         text: '',
         errorMsg: ''
       };
-      
+
       setFiles(prev => [...prev, placeholder]);
-      
+
       try {
         const text = await parseDocument(f);
-        setFiles(prev => prev.map(item => 
+        setFiles(prev => prev.map(item =>
           item.id === fileId ? { ...item, status: 'success', text } : item
         ));
       } catch (err) {
-        setFiles(prev => prev.map(item => 
+        setFiles(prev => prev.map(item =>
           item.id === fileId ? { ...item, status: 'error', errorMsg: err.message || 'Parsing failed' } : item
         ));
       }
@@ -999,7 +1119,7 @@ export default function App() {
       setShowSettingsModal(true);
       return;
     }
-    
+
     if (inputMode === 'documents') {
       const parsedFiles = files.filter(f => f.status === 'success');
       if (parsedFiles.length === 0) {
@@ -1020,7 +1140,7 @@ export default function App() {
 
     try {
       const template = TEMPLATES.find(t => t.id === selectedTemplate) || TEMPLATES[0];
-      
+
       // Inject context variables into system instruction
       let classContext = educationStage === 'primary'
         ? `You are tailoring this for a primary school class (${classYear}) studying under the ${curriculum} framework. The student ability group is: ${learningFocus}. Incorporate primary education pedagogy: warm, nurturing, child-friendly explanations, engaging sensory or concrete examples, playful starter routines, clear phonics/reading scaffolds, and bite-sized checks for understanding suitable for primary children.`
@@ -1031,9 +1151,9 @@ export default function App() {
         classContext += ` Target approximately ${presentationSlides || '8'} slides in total. Provide concise, projector-friendly bullet points and insightful teacher delivery notes for every slide.`;
       }
       const fullSystemPrompt = `${template.systemPrompt}\n\n[Context Adjustments]:\n${classContext}`;
-      
+
       setStatusMessage('Sending request to AI model (this may take a moment)...');
-      
+
       let userPromptText = '';
       if (inputMode === 'documents') {
         const aggregatedText = getAggregatedText();
@@ -1051,7 +1171,7 @@ export default function App() {
         systemPrompt: fullSystemPrompt,
         userPrompt: userPromptText
       });
-      
+
       setOutputContent(response);
       setStatusMessage('Completed successfully!');
     } catch (err) {
@@ -1072,7 +1192,7 @@ export default function App() {
   const handleCopyRichText = () => {
     // Generate styled HTML from Markdown
     const htmlContent = marked.parse(outputContent);
-    
+
     // Add lightweight document styling for Word/Google Docs
     const styledHtml = `
       <html>
@@ -1097,7 +1217,7 @@ export default function App() {
 
     const blob = new Blob([styledHtml], { type: 'text/html' });
     const clipboardItem = new ClipboardItem({ 'text/html': blob });
-    
+
     navigator.clipboard.write([clipboardItem]).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -1169,7 +1289,7 @@ export default function App() {
   // Workflow Chaining: Use current generated plan/material as source for full lesson resources
   const handleChainToMaterials = () => {
     if (!outputContent) return;
-    
+
     // Switch template to Lesson Materials & Handouts
     setSelectedTemplate('lesson_materials');
 
@@ -1197,7 +1317,7 @@ export default function App() {
   // Convert markdown table string into editable arrays of rows/columns
   const parseTablesFromMarkdown = (markdown) => {
     if (!markdown) return [];
-    
+
     // Extract tables matching markdown structure
     const tables = [];
     const lines = markdown.split('\n');
@@ -1255,11 +1375,11 @@ export default function App() {
     // Reconstruct the output markdown cleanly:
     const lines = outputContent.split('\n');
     let startIdx = tableToRebuild.startIndex;
-    
+
     // Search the actual lines to replace accurately
     let originalRowsCount = tables[tableIndex].rows.length + 2; // header + separator + rows
     lines.splice(startIdx, originalRowsCount, headerStr, separatorStr, ...tableToRebuild.rows.map(row => `| ${row.join(' | ')} |`));
-    
+
     setOutputContent(lines.join('\n'));
   };
 
@@ -1270,22 +1390,21 @@ export default function App() {
 
       {/* Main Container */}
       <div className="max-w-7xl mx-auto w-full relative z-10 flex-grow flex flex-col gap-6">
-        
+
         {/* Header Block */}
         <header className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-white/10 pb-6">
           <div className="flex items-center gap-3">
-            <div className={`p-3 rounded-2xl border transition-all duration-300 ${
-              educationStage === 'primary' 
-                ? 'bg-amber-500/20 border-amber-400/40 shadow-[0_0_18px_rgba(245,158,11,0.25)]' 
+            <div className={`p-3 rounded-2xl border transition-all duration-300 ${educationStage === 'primary'
+                ? 'bg-amber-500/20 border-amber-400/40 shadow-[0_0_18px_rgba(245,158,11,0.25)]'
                 : 'bg-violet-600/20 border-violet-500/30 glow-border-purple'
-            }`}>
+              }`}>
               <Sparkles className={`w-8 h-8 transition-colors duration-300 ${educationStage === 'primary' ? 'text-amber-400' : 'text-violet-400'}`} />
             </div>
             <div>
               <h1 className="text-3xl font-extrabold tracking-tight text-white m-0">
-                <DecryptedText 
-                  text="JRUSS AI TOOL" 
-                  speed={40} 
+                <DecryptedText
+                  text="JRUSS AI TOOL"
+                  speed={40}
                   className={educationStage === 'primary'
                     ? "bg-gradient-to-r from-amber-400 via-orange-300 to-sky-400 bg-clip-text text-transparent"
                     : "bg-gradient-to-r from-violet-400 via-indigo-200 to-cyan-400 bg-clip-text text-transparent"
@@ -1294,19 +1413,18 @@ export default function App() {
               </h1>
               <p className="text-sm text-slate-400 mt-1 flex items-center gap-2">
                 <span>
-                  {educationStage === 'primary' 
-                    ? 'Primary School Lesson Planner & Child-Friendly Teaching Suite' 
+                  {educationStage === 'primary'
+                    ? 'Primary School Lesson Planner & Child-Friendly Teaching Suite'
                     : 'Secondary School Lesson Planner & Document Tailoring Suite'}
                 </span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono font-semibold border ${
-                  educationStage === 'primary'
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono font-semibold border ${educationStage === 'primary'
                     ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                     : 'bg-violet-500/20 text-violet-300 border-violet-500/30'
-                }`}>v{CURRENT_APP_VERSION}</span>
+                  }`}>v{CURRENT_APP_VERSION}</span>
               </p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2.5 flex-wrap justify-end">
             {/* Primary vs Secondary Education Stage Switch */}
             <div className="edu-stage-switch" title="Toggle between Primary and Secondary school curriculum modes">
@@ -1362,6 +1480,16 @@ export default function App() {
                     {isFreeTier ? '⚡ Free Tier' : '💎 Paid / Pro'}
                   </span>
                 </>
+              ) : provider === 'claude' ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)]"></span>
+                  <span className="font-semibold text-white">
+                    {customModel.trim() ? customModel.trim() : currentClaudeModel.name}
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">
+                    Claude (Beta)
+                  </span>
+                </>
               ) : (
                 <>
                   <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]"></span>
@@ -1375,7 +1503,7 @@ export default function App() {
               )}
             </button>
 
-            <button 
+            <button
               onClick={() => setShowSettingsModal(true)}
               className="header-model-pill hover-scale text-slate-300 hover:text-white"
               title="AI Engine Settings"
@@ -1396,7 +1524,7 @@ export default function App() {
 
         {/* Content Layout Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          
+
           {/* Left Column: API settings, File inputs, configurations (5 cols) */}
           <div className="lg:col-span-5 flex flex-col gap-6">
 
@@ -1407,12 +1535,12 @@ export default function App() {
                   <LayoutTemplate className={`w-5 h-5 ${educationStage === 'primary' ? 'text-amber-400' : 'text-cyan-400'}`} />
                   <h2 className="text-lg text-white m-0">Pedagogical Context ({educationStage === 'primary' ? 'Primary' : 'Secondary'})</h2>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Class / Year Level</label>
-                    <select 
-                      value={classYear} 
+                    <select
+                      value={classYear}
                       onChange={(e) => setClassYear(e.target.value)}
                       className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
                     >
@@ -1424,8 +1552,8 @@ export default function App() {
 
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Curriculum</label>
-                    <select 
-                      value={curriculum} 
+                    <select
+                      value={curriculum}
                       onChange={(e) => setCurriculum(e.target.value)}
                       className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
                     >
@@ -1438,8 +1566,8 @@ export default function App() {
 
                   <div className="col-span-2">
                     <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Student Focus & Differentiation</label>
-                    <select 
-                      value={learningFocus} 
+                    <select
+                      value={learningFocus}
                       onChange={(e) => setLearningFocus(e.target.value)}
                       className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
                     >
@@ -1458,11 +1586,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setInputMode('documents')}
-                className={`btn-mode-tab ${
-                  inputMode === 'documents'
+                className={`btn-mode-tab ${inputMode === 'documents'
                     ? 'btn-mode-active-doc'
                     : 'btn-mode-inactive'
-                }`}
+                  }`}
               >
                 <Upload className="w-3.5 h-3.5" />
                 <span>Upload Documents</span>
@@ -1474,11 +1601,10 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setInputMode('prompt')}
-                className={`btn-mode-tab ${
-                  inputMode === 'prompt'
+                className={`btn-mode-tab ${inputMode === 'prompt'
                     ? 'btn-mode-active-prompt'
                     : 'btn-mode-inactive'
-                }`}
+                  }`}
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Prompt-Only Mode</span>
@@ -1499,25 +1625,24 @@ export default function App() {
                   </div>
 
                   {/* Visual Dropzone area */}
-                  <div 
-                    className={`border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${
-                      dragActive 
-                        ? 'border-violet-500 bg-violet-500/5' 
+                  <div
+                    className={`border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${dragActive
+                        ? 'border-violet-500 bg-violet-500/5'
                         : 'border-white/10 bg-slate-950/40 hover:border-violet-500/50 hover:bg-slate-950/60'
-                    }`}
+                      }`}
                     onDragEnter={handleDrag}
                     onDragOver={handleDrag}
                     onDragLeave={handleDrag}
                     onDrop={handleDrop}
                     onClick={() => document.getElementById('file-upload-input').click()}
                   >
-                    <input 
-                      type="file" 
-                      id="file-upload-input" 
-                      multiple 
+                    <input
+                      type="file"
+                      id="file-upload-input"
+                      multiple
                       accept=".pdf,.docx,.pptx,.txt,.md"
                       onChange={handleFileChange}
-                      className="hidden" 
+                      className="hidden"
                     />
                     <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
                     <p className="text-sm text-slate-300 font-semibold mb-1">Drag & Drop files here</p>
@@ -1528,31 +1653,30 @@ export default function App() {
                   {files.length > 0 && (
                     <div className="flex flex-col gap-2.5 max-h-[220px] overflow-y-auto pr-1 mt-4">
                       {files.map(f => (
-                        <div 
-                          key={f.id} 
+                        <div
+                          key={f.id}
                           className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-white/5 hover:border-white/10 transition"
                         >
                           <div className="flex items-center gap-2.5 overflow-hidden">
-                            <FileText className={`w-5 h-5 shrink-0 ${
-                              f.status === 'success' ? 'text-violet-400' : f.status === 'parsing' ? 'text-indigo-400 animate-pulse' : 'text-rose-400'
-                            }`} />
+                            <FileText className={`w-5 h-5 shrink-0 ${f.status === 'success' ? 'text-violet-400' : f.status === 'parsing' ? 'text-indigo-400 animate-pulse' : 'text-rose-400'
+                              }`} />
                             <div className="overflow-hidden">
                               <p className="text-xs text-slate-200 font-medium truncate m-0">{f.name}</p>
                               <p className="text-[10px] text-slate-400 m-0 mt-0.5">
                                 {(f.size / 1024).toFixed(1)} KB • {
-                                  f.status === 'success' 
-                                    ? `${f.text.length} chars parsed` 
-                                    : f.status === 'parsing' 
-                                      ? 'Extracting text...' 
+                                  f.status === 'success'
+                                    ? `${f.text.length} chars parsed`
+                                    : f.status === 'parsing'
+                                      ? 'Extracting text...'
                                       : 'Parsing error'
                                 }
                               </p>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center gap-1.5 shrink-0">
                             {f.status === 'success' && (
-                              <button 
+                              <button
                                 onClick={(e) => { e.stopPropagation(); setPreviewingFile(f); }}
                                 className="p-1 hover:bg-white/5 rounded text-slate-400 hover:text-white"
                                 title="Preview Extracted Text"
@@ -1560,7 +1684,7 @@ export default function App() {
                                 <Eye className="w-4 h-4" />
                               </button>
                             )}
-                            <button 
+                            <button
                               onClick={(e) => { e.stopPropagation(); removeFile(f.id); }}
                               className="p-1 hover:bg-white/5 rounded text-slate-400 hover:text-rose-400"
                             >
@@ -1593,7 +1717,7 @@ export default function App() {
                       <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
                         Lesson Topic / Unit Title <span className="text-rose-400">*</span>
                       </label>
-                      <input 
+                      <input
                         type="text"
                         value={promptTopic}
                         onChange={(e) => setPromptTopic(e.target.value)}
@@ -1639,7 +1763,7 @@ export default function App() {
 
           {/* Right Column: Template settings & Output workspace (7 cols) */}
           <div className="lg:col-span-7 flex flex-col gap-6">
-            
+
             {/* Prompt Template Card */}
             <StarBorder color={educationStage === 'primary' ? '#f59e0b' : '#6366f1'}>
               <SpotlightCard className="bg-transparent border-0" spotlightColor={educationStage === 'primary' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(99, 102, 241, 0.12)'}>
@@ -1671,15 +1795,13 @@ export default function App() {
 
                 {/* Homework Target Duration Selector (Shown when Homework Assignment is active) */}
                 {selectedTemplate === 'homework' && (
-                  <div className={`mb-4 p-3.5 rounded-xl border ${
-                    educationStage === 'primary'
+                  <div className={`mb-4 p-3.5 rounded-xl border ${educationStage === 'primary'
                       ? 'bg-amber-950/20 border-amber-500/25'
                       : 'bg-purple-950/30 border-purple-500/25'
-                  }`}>
+                    }`}>
                     <div className="flex items-center justify-between mb-2">
-                      <label className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 m-0 ${
-                        educationStage === 'primary' ? 'text-amber-200' : 'text-purple-200'
-                      }`}>
+                      <label className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 m-0 ${educationStage === 'primary' ? 'text-amber-200' : 'text-purple-200'
+                        }`}>
                         <Clock className={`w-3.5 h-3.5 ${educationStage === 'primary' ? 'text-amber-400' : 'text-purple-400'}`} />
                         <span>Target Homework Duration</span>
                       </label>
@@ -1714,15 +1836,13 @@ export default function App() {
 
                 {/* Presentation Slide Count Selector (Shown when PowerPoint Presentation is active) */}
                 {selectedTemplate === 'presentation' && (
-                  <div className={`mb-4 p-3.5 rounded-xl border ${
-                    educationStage === 'primary'
+                  <div className={`mb-4 p-3.5 rounded-xl border ${educationStage === 'primary'
                       ? 'bg-amber-950/20 border-amber-500/25'
                       : 'bg-indigo-950/30 border-indigo-500/25'
-                  }`}>
+                    }`}>
                     <div className="flex items-center justify-between mb-2">
-                      <label className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 m-0 ${
-                        educationStage === 'primary' ? 'text-amber-200' : 'text-indigo-200'
-                      }`}>
+                      <label className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 m-0 ${educationStage === 'primary' ? 'text-amber-200' : 'text-indigo-200'
+                        }`}>
                         <Presentation className={`w-3.5 h-3.5 ${educationStage === 'primary' ? 'text-amber-400' : 'text-indigo-400'}`} />
                         <span>Approximate Number of Slides</span>
                       </label>
@@ -1762,18 +1882,18 @@ export default function App() {
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
                     <span>{inputMode === 'prompt' ? 'Lesson Focus Directives & Requirements' : `Custom Directives (${educationStage === 'primary' ? 'Primary' : 'Secondary'} Focus)`}</span>
                     <span className="text-[10px] text-slate-500">
-                      {inputMode === 'prompt' 
-                        ? (educationStage === 'primary' ? 'e.g. 45-min lesson, story starter, play activity' : 'e.g. 60-min lesson, starter recap, lab experiment') 
+                      {inputMode === 'prompt'
+                        ? (educationStage === 'primary' ? 'e.g. 45-min lesson, story starter, play activity' : 'e.g. 60-min lesson, starter recap, lab experiment')
                         : (educationStage === 'primary' ? 'e.g. Include phonics, sensory task, colouring' : 'e.g. Include a practical lab, roleplay, exit questions')}
                     </span>
                   </label>
-                  <textarea 
+                  <textarea
                     rows={inputMode === 'prompt' ? 3 : 2}
                     value={customPrompt}
                     onChange={(e) => setCustomPrompt(e.target.value)}
                     placeholder={
-                      inputMode === 'prompt' 
-                        ? "Specify key concepts, starter activities, practical work, or exam questions to include (or use the Quick-Injectors on the left)..." 
+                      inputMode === 'prompt'
+                        ? "Specify key concepts, starter activities, practical work, or exam questions to include (or use the Quick-Injectors on the left)..."
                         : "Insert custom teaching notes, focus areas, key skills, learning needs..."
                     }
                     className="w-full bg-slate-950/80 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-violet-500 resize-y"
@@ -1784,9 +1904,9 @@ export default function App() {
                 <button
                   onClick={handleGenerate}
                   disabled={
-                    isGenerating || 
-                    (inputMode === 'documents' 
-                      ? files.filter(f => f.status === 'success').length === 0 
+                    isGenerating ||
+                    (inputMode === 'documents'
+                      ? files.filter(f => f.status === 'success').length === 0
                       : (!promptTopic.trim() && !customPrompt.trim()))
                   }
                   className={`btn-generate ${inputMode === 'prompt' ? 'btn-generate-prompt' : 'btn-generate-doc'}`}
@@ -1816,7 +1936,7 @@ export default function App() {
             {/* Generated Workspace Card */}
             <StarBorder color={educationStage === 'primary' ? '#0ea5e9' : '#a78bfa'}>
               <SpotlightCard className="bg-transparent border-0 flex flex-col min-h-[400px]" spotlightColor={educationStage === 'primary' ? 'rgba(14, 165, 233, 0.12)' : 'rgba(167, 139, 250, 0.12)'}>
-                
+
                 {/* Workspace Header Panel */}
                 <div className="border-b border-white/10 pb-3 bg-transparent flex flex-col sm:flex-row items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
@@ -1832,21 +1952,21 @@ export default function App() {
                   {/* Tabs selection */}
                   {outputContent && (
                     <div className="flex items-center gap-1.5">
-                      <button 
+                      <button
                         onClick={() => setOutputTab('render')}
                         className={`text-xs px-2.5 py-1 rounded-md transition ${outputTab === 'render' ? 'bg-white/10 text-white font-medium' : 'text-slate-400 hover:text-white'}`}
                       >
                         Formatted Doc
                       </button>
                       {tables.length > 0 && (
-                        <button 
+                        <button
                           onClick={() => setOutputTab('table')}
                           className={`text-xs px-2.5 py-1 rounded-md transition flex items-center gap-1 ${outputTab === 'table' ? 'bg-white/10 text-white font-medium' : 'text-slate-400 hover:text-white'}`}
                         >
                           <FileSpreadsheet className="w-3.5 h-3.5" /> Editable Tables ({tables.length})
                         </button>
                       )}
-                      <button 
+                      <button
                         onClick={() => setOutputTab('raw')}
                         className={`text-xs px-2.5 py-1 rounded-md transition ${outputTab === 'raw' ? 'bg-white/10 text-white font-medium' : 'text-slate-400 hover:text-white'}`}
                       >
@@ -1869,9 +1989,9 @@ export default function App() {
                   ) : outputContent ? (
                     <>
                       {outputTab === 'render' && (
-                        <div 
-                          className="markdown-body" 
-                          dangerouslySetInnerHTML={{ __html: marked.parse(outputContent) }} 
+                        <div
+                          className="markdown-body"
+                          dangerouslySetInnerHTML={{ __html: marked.parse(outputContent) }}
                         />
                       )}
 
@@ -1931,8 +2051,8 @@ export default function App() {
                       </div>
                       <h3 className="text-sm font-semibold text-slate-300 m-0">No Output Generated</h3>
                       <p className="text-xs text-slate-500 max-w-sm mt-1.5 leading-relaxed">
-                        {inputMode === 'prompt' 
-                          ? 'Enter a lesson topic on the left, pick an output blueprint, and click "Generate from Topic & Prompt" to craft your materials.' 
+                        {inputMode === 'prompt'
+                          ? 'Enter a lesson topic on the left, pick an output blueprint, and click "Generate from Topic & Prompt" to craft your materials.'
                           : 'Upload your lesson material, configure class parameters, and click "Generate Lesson Output" to begin.'
                         }
                       </p>
@@ -1953,11 +2073,10 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => setExportOrientation('portrait')}
-                          className={`px-2 py-1 rounded font-medium transition ${
-                            exportOrientation === 'portrait'
+                          className={`px-2 py-1 rounded font-medium transition ${exportOrientation === 'portrait'
                               ? (educationStage === 'primary' ? 'bg-amber-600 text-white' : 'bg-violet-600 text-white')
                               : 'text-slate-400 hover:text-white'
-                          }`}
+                            }`}
                           title="Page orientation: Portrait (standard document)"
                         >
                           Portrait
@@ -1965,18 +2084,17 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => setExportOrientation('landscape')}
-                          className={`px-2 py-1 rounded font-medium transition ${
-                            exportOrientation === 'landscape'
+                          className={`px-2 py-1 rounded font-medium transition ${exportOrientation === 'landscape'
                               ? (educationStage === 'primary' ? 'bg-amber-600 text-white' : 'bg-violet-600 text-white')
                               : 'text-slate-400 hover:text-white'
-                          }`}
+                            }`}
                           title="Page orientation: Landscape (wide tables / handouts)"
                         >
                           Landscape
                         </button>
                       </div>
                     </div>
-                    
+
                     <div className="flex flex-wrap items-center gap-2">
                       {selectedTemplate !== 'lesson_materials' && (
                         <button
@@ -2001,13 +2119,12 @@ export default function App() {
                         </button>
                       )}
 
-                      <button 
+                      <button
                         onClick={handleCopyRichText}
-                        className={`px-2.5 py-1.5 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale focus:outline-none transition shrink-0 ${
-                          educationStage === 'primary' 
-                            ? 'bg-amber-600 hover:bg-amber-500' 
+                        className={`px-2.5 py-1.5 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale focus:outline-none transition shrink-0 ${educationStage === 'primary'
+                            ? 'bg-amber-600 hover:bg-amber-500'
                             : 'bg-violet-600 hover:bg-violet-500'
-                        }`}
+                          }`}
                         title="Copy formatted text to clipboard (ready to paste into Microsoft Word or Google Docs)"
                       >
                         {copied ? (
@@ -2023,7 +2140,7 @@ export default function App() {
                         )}
                       </button>
 
-                      <button 
+                      <button
                         onClick={handleDownloadPdf}
                         className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale shadow-sm focus:outline-none transition shrink-0"
                         title="Download formatted Adobe PDF (.pdf) file"
@@ -2032,7 +2149,7 @@ export default function App() {
                         <span>Download PDF</span>
                       </button>
 
-                      <button 
+                      <button
                         onClick={handleDownloadDocx}
                         className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale shadow-sm focus:outline-none transition shrink-0"
                         title="Download formatted Microsoft Word (.docx) document"
@@ -2041,7 +2158,7 @@ export default function App() {
                         <span>DocX</span>
                       </button>
 
-                      <button 
+                      <button
                         onClick={handleDownloadMarkdown}
                         className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-white/5 text-slate-200 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale focus:outline-none transition shrink-0"
                         title="Download plain Markdown (.md) file"
@@ -2070,22 +2187,22 @@ export default function App() {
                 <FileText className="w-4 h-4 text-violet-400" />
                 <span className="text-xs font-bold text-white">Parsed Output Preview: {previewingFile.name}</span>
               </div>
-              <button 
-                onClick={() => setPreviewingFile(null)} 
+              <button
+                onClick={() => setPreviewingFile(null)}
                 className="text-xs text-slate-400 hover:text-white font-bold"
               >
                 Close
               </button>
             </div>
-            
+
             <div className="p-5 overflow-y-auto flex-grow bg-slate-950/20">
               <pre className="text-[11px] font-mono text-slate-300 whitespace-pre-wrap leading-relaxed">
                 {previewingFile.text || 'No text extracted from this file.'}
               </pre>
             </div>
-            
+
             <div className="px-5 py-3 border-t border-white/10 bg-slate-950/60 flex justify-end">
-              <button 
+              <button
                 onClick={() => setPreviewingFile(null)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold"
               >
@@ -2098,50 +2215,56 @@ export default function App() {
 
       {/* Settings Drawer Modal */}
       {showSettingsModal && (
-        <div className="fixed inset-0 z-50 bg-[#080b11]/90 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto" onClick={() => setShowSettingsModal(false)}>
+        <div
+          className="fixed inset-0 z-50 bg-[#080b11]/90 backdrop-blur-md overflow-y-auto p-3 sm:p-5 flex justify-center items-start"
+          onClick={() => setShowSettingsModal(false)}
+        >
           <DotField />
-          <StarBorder className="w-full max-w-xl relative z-10 my-8" color="#8b5cf6">
-            <SpotlightCard 
-              className="bg-[#0b0f19]/95 border-0 p-6 sm:p-7 flex flex-col gap-6" 
+          <StarBorder className="w-full max-w-xl relative z-10 my-auto py-2 sm:py-4 max-h-[92vh] flex flex-col" color="#8b5cf6">
+            <SpotlightCard
+              className="bg-[#0b0f19]/95 border-0 p-4 sm:p-6 flex flex-col max-h-[90vh] overflow-hidden"
+              contentClassName="flex flex-col h-full max-h-full overflow-hidden"
               spotlightColor="rgba(139, 92, 246, 0.15)"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between pb-4 border-b border-white/10">
+              {/* Sticky Modal Header */}
+              <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-white/10 shrink-0">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-violet-600/20 rounded-xl border border-violet-500/30">
+                  <div className="p-2 bg-violet-600/20 rounded-xl border border-violet-500/30 shrink-0">
                     <Settings className="w-5 h-5 text-violet-400 animate-[spin_10s_linear_infinite]" />
                   </div>
                   <div>
-                    <h2 className="text-lg text-white m-0 font-bold">AI Engine & Model Configuration</h2>
-                    <p className="text-xs text-slate-400 m-0 mt-0.5">Configure your AI provider and choose between Free and Paid model tiers</p>
+                    <h2 className="text-base sm:text-lg text-white m-0 font-bold">AI Engine & Model Configuration</h2>
+                    <p className="text-[11px] sm:text-xs text-slate-400 m-0 mt-0.5">Configure your AI provider and choose between Free and Paid model tiers</p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => setShowSettingsModal(false)}
-                  className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded hover:bg-white/5 font-semibold"
+                  className="text-xs text-slate-400 hover:text-white px-2.5 py-1.5 rounded-lg hover:bg-white/10 font-semibold transition shrink-0 ml-2"
                 >
                   ✕ Close
                 </button>
               </div>
 
-              <div className="flex flex-col gap-5">
+              {/* Scrollable Settings Content Body */}
+              <div className="flex-1 overflow-y-auto pr-1 sm:pr-1.5 py-3 flex flex-col gap-4.5 overscroll-contain">
                 {/* Provider Selection */}
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">AI Provider</label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
                     <button
                       type="button"
                       onClick={() => handleSelectProvider('gemini')}
                       className={`settings-provider-card ${provider === 'gemini' ? 'active-gemini' : ''}`}
                     >
                       <div className="flex items-center gap-2.5">
-                        <Sparkles className="w-4 h-4 text-violet-400" />
+                        <Sparkles className="w-4 h-4 text-violet-400 shrink-0" />
                         <div>
                           <p className="text-xs font-bold m-0 text-white">Google Gemini</p>
-                          <p className="text-[10px] text-slate-400 m-0">Free & Paid Tiers via AI Studio</p>
+                          <p className="text-[10px] text-slate-400 m-0">Free &amp; Paid Tiers</p>
                         </div>
                       </div>
-                      {provider === 'gemini' && <Check className="w-4 h-4 text-violet-400" />}
+                      {provider === 'gemini' && <Check className="w-4 h-4 text-violet-400 shrink-0" />}
                     </button>
 
                     <button
@@ -2150,13 +2273,33 @@ export default function App() {
                       className={`settings-provider-card ${provider === 'openai' ? 'active-openai' : ''}`}
                     >
                       <div className="flex items-center gap-2.5">
-                        <Zap className="w-4 h-4 text-cyan-400" />
+                        <Zap className="w-4 h-4 text-cyan-400 shrink-0" />
                         <div>
                           <p className="text-xs font-bold m-0 text-white">OpenAI ChatGPT</p>
-                          <p className="text-[10px] text-slate-400 m-0">GPT-4o & Mini</p>
+                          <p className="text-[10px] text-slate-400 m-0">GPT-4o &amp; Mini</p>
                         </div>
                       </div>
-                      {provider === 'openai' && <Check className="w-4 h-4 text-cyan-400" />}
+                      {provider === 'openai' && <Check className="w-4 h-4 text-cyan-400 shrink-0" />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectProvider('claude')}
+                      className={`settings-provider-card ${provider === 'claude' ? 'active-claude' : ''}`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Bot className="w-4 h-4 text-amber-400 shrink-0" />
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-bold m-0 text-white">Anthropic Claude</p>
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">
+                              Beta
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 m-0">Claude 3.7 &amp; 3.5</p>
+                        </div>
+                      </div>
+                      {provider === 'claude' && <Check className="w-4 h-4 text-amber-400 shrink-0" />}
                     </button>
                   </div>
                 </div>
@@ -2166,7 +2309,10 @@ export default function App() {
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                       <Key className="w-3.5 h-3.5 text-violet-400" />
-                      <span>{provider === 'gemini' ? 'Gemini API Key' : 'OpenAI API Key'}</span>
+                      <span>{provider === 'gemini' ? 'Gemini API Key' : provider === 'claude' ? 'Claude API Key (Anthropic - Beta)' : 'OpenAI API Key'}</span>
+                      <span className="text-[9px] px-1.5 py-0.5 bg-violet-500/20 text-violet-300 border border-violet-500/30 rounded-full font-mono lowercase">
+                        auto-detects on paste
+                      </span>
                     </label>
                     <button 
                       type="button"
@@ -2181,12 +2327,10 @@ export default function App() {
                   <div className="flex gap-2">
                     <input 
                       type={showKey ? "text" : "password"} 
-                      placeholder={provider === 'gemini' ? "Paste Gemini API Key (AIzaSy...)" : "Paste OpenAI API Key (sk-...)"}
+                      placeholder={provider === 'gemini' ? "Paste Gemini API Key (AIzaSy...)" : provider === 'claude' ? "Paste Claude API Key (sk-ant-...)" : "Paste OpenAI API Key (sk-...)"}
                       value={apiKey}
-                      onChange={(e) => {
-                        setApiKey(e.target.value);
-                        setDetectStatus(null);
-                      }}
+                      onPaste={handleApiKeyPaste}
+                      onChange={handleApiKeyChange}
                       className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-violet-500 font-mono"
                     />
 
@@ -2196,7 +2340,7 @@ export default function App() {
                       disabled={isDetectingModels || !apiKey.trim()}
                       className="header-model-pill hover-scale text-violet-200 hover:text-white shrink-0 font-semibold"
                       style={{ background: 'rgba(139, 92, 246, 0.22)', borderColor: 'rgba(167, 139, 250, 0.45)' }}
-                      title="Inspect API key and detect available models directly from Google"
+                      title="Inspect API key and detect available models"
                     >
                       {isDetectingModels ? (
                         <>
@@ -2217,10 +2361,14 @@ export default function App() {
                     <div className={`mt-2 p-2.5 rounded-xl border text-xs flex items-center gap-2 ${
                       detectStatus.type === 'success' 
                         ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
+                        : detectStatus.type === 'info'
+                        ? 'bg-violet-500/10 border-violet-500/30 text-violet-300'
                         : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
                     }`}>
                       {detectStatus.type === 'success' ? (
                         <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                      ) : detectStatus.type === 'info' ? (
+                        <RefreshCw className="w-4 h-4 shrink-0 text-violet-400 animate-spin" />
                       ) : (
                         <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
                       )}
@@ -2232,88 +2380,208 @@ export default function App() {
                     <span>
                       {provider === 'gemini' && detectedGeminiModels 
                         ? `✓ Live Google API sync active (${detectedGeminiModels.length} models detected)` 
+                        : provider === 'claude' && detectedClaudeModels
+                        ? `✓ Live Anthropic Claude sync active (${detectedClaudeModels.length} models detected)`
+                        : provider === 'openai' && detectedOpenAIModels
+                        ? `✓ Live OpenAI sync active (${detectedOpenAIModels.length} models detected)`
                         : 'Saved locally in browser storage. Never uploaded to external servers.'}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      ⚡ Paste API key to auto-detect
                     </span>
                   </div>
 
-                  {/* API Key Help Guide */}
+                  {/* API Key Help Guide (Collapsible for compact fit & responsiveness) */}
                   {provider === 'gemini' ? (
-                    <div className="mt-3 p-3.5 rounded-xl bg-slate-950/70 border border-violet-500/25 text-xs flex flex-col gap-2.5">
-                      <div className="flex items-center justify-between flex-wrap gap-2">
-                        <span className="font-bold text-white flex items-center gap-1.5 text-xs">
-                          <HelpCircle className="w-4 h-4 text-violet-400 shrink-0" />
-                          How to get your Free Google Gemini Key:
+                    <div className="mt-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowGeminiGuide(!showGeminiGuide)}
+                        className="w-full px-3 py-2 rounded-xl bg-violet-600/15 hover:bg-violet-600/25 border border-violet-500/30 text-xs text-violet-200 flex items-center justify-between transition group"
+                      >
+                        <span className="flex items-center gap-1.5 font-semibold text-violet-300">
+                          <HelpCircle className="w-3.5 h-3.5 text-violet-400 group-hover:scale-110 transition-transform" />
+                          <span>How to get your Free Google Gemini Key</span>
                         </span>
-                        <a 
-                          href="https://aistudio.google.com/app/apikey" 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-[11px] text-violet-300 hover:text-white bg-violet-600/30 hover:bg-violet-600/50 border border-violet-500/40 px-2.5 py-1 rounded-lg flex items-center gap-1 font-semibold transition"
-                        >
-                          <span>Open Google AI Studio</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-                      <div className="flex flex-col gap-1.5 text-[11px] text-slate-300 leading-relaxed">
-                        <div className="flex items-start gap-2">
-                          <span className="w-4 h-4 rounded-full bg-violet-500/20 text-violet-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
-                          <span>Go to <strong>Google AI Studio</strong> and sign in with any standard Google or school Workspace account.</span>
+                        <span className="text-[11px] text-violet-400 flex items-center gap-1 font-medium">
+                          {showGeminiGuide ? 'Hide Guide' : 'Show Step-by-Step'}
+                          {showGeminiGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </span>
+                      </button>
+
+                      {showGeminiGuide && (
+                        <div className="mt-2 p-3.5 rounded-xl bg-slate-950/80 border border-violet-500/25 text-xs flex flex-col gap-2.5">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <span className="font-bold text-white flex items-center gap-1.5 text-xs">
+                              <Sparkles className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                              Google Cloud Project & Service Setup:
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <a
+                                href="https://aistudio.google.com/app/apikey"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] text-violet-300 hover:text-white bg-violet-600/30 hover:bg-violet-600/50 border border-violet-500/40 px-2.5 py-1 rounded-lg flex items-center gap-1 font-semibold transition"
+                              >
+                                <span>Open Google AI Studio</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
+                          </div>
+
+                          <p className="text-[11px] text-slate-400 m-0 leading-relaxed">
+                            Google now pairs every Gemini API key with a free <strong>Google Cloud Project</strong> to track quota and manage services. Follow these updated steps:
+                          </p>
+
+                          <div className="flex flex-col gap-2 text-[11px] text-slate-300 leading-relaxed">
+                            <div className="flex items-start gap-2">
+                              <span className="w-4 h-4 rounded-full bg-violet-500/20 text-violet-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+                              <span><strong>Sign in to Google AI Studio:</strong> Open <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-violet-300 underline font-medium">aistudio.google.com/app/apikey</a>. Sign in with any standard Google account. <em>(Tip: Personal @gmail.com accounts usually work best without school domain cloud restrictions).</em></span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="w-4 h-4 rounded-full bg-violet-500/20 text-violet-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+                              <span><strong>Click "Create API key":</strong> Click the blue button. You will be prompted to choose or create a Google Cloud Project container.</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="w-4 h-4 rounded-full bg-violet-500/20 text-violet-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
+                              <span><strong>Configure Project &amp; Service:</strong> Select <strong>"Create key in new project"</strong> (or link an existing project). AI Studio will automatically link the project and activate the required <strong>"Generative Language API"</strong> service.</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="w-4 h-4 rounded-full bg-violet-500/20 text-violet-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">4</span>
+                              <span><strong>Copy Key &amp; Paste Above:</strong> Copy the generated string (<code className="text-violet-300 font-mono">AIzaSy...</code>) and paste it into the box above. JRUSS AI TOOL will <strong>instantly auto-detect</strong> all your models (including Gemini 4 Argon &amp; Flash)!</span>
+                            </div>
+                          </div>
+
+                          <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-[10px] text-emerald-300 flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5 font-semibold">
+                              <span>⚡ 100% Free for Educators &amp; Classrooms:</span>
+                            </div>
+                            <span className="text-slate-300">
+                              No billing setup or credit card required. The standard free tier includes up to 1,500 requests/day for Gemini Flash models.
+                            </span>
+                          </div>
+
+                          <div className="p-2 bg-slate-900/80 border border-white/5 rounded-lg text-[10px] text-slate-400">
+                            <span className="font-semibold text-slate-300">School Account Note:</span> If your school IT policy blocks creating Google Cloud projects or gives an authorization error, simply use a personal Google (@gmail.com) account instead.
+                          </div>
                         </div>
-                        <div className="flex items-start gap-2">
-                          <span className="w-4 h-4 rounded-full bg-violet-500/20 text-violet-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
-                          <span>Click the blue <strong>"Create API key"</strong> button (or "Get API key").</span>
+                      )}
+                    </div>
+                  ) : provider === 'openai' ? (
+                    <div className="mt-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowOpenAiGuide(!showOpenAiGuide)}
+                        className="w-full px-3 py-2 rounded-xl bg-cyan-600/15 hover:bg-cyan-600/25 border border-cyan-500/30 text-xs text-cyan-200 flex items-center justify-between transition group"
+                      >
+                        <span className="flex items-center gap-1.5 font-semibold text-cyan-300">
+                          <HelpCircle className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
+                          <span>How to get your OpenAI API Key</span>
+                        </span>
+                        <span className="text-[11px] text-cyan-400 flex items-center gap-1 font-medium">
+                          {showOpenAiGuide ? 'Hide Guide' : 'Show Step-by-Step'}
+                          {showOpenAiGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </span>
+                      </button>
+
+                      {showOpenAiGuide && (
+                        <div className="mt-2 p-3.5 rounded-xl bg-slate-950/80 border border-cyan-500/25 text-xs flex flex-col gap-2.5">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <span className="font-bold text-white flex items-center gap-1.5 text-xs">
+                              <Zap className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                              OpenAI Developer Platform Setup:
+                            </span>
+                            <a
+                              href="https://platform.openai.com/api-keys"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-cyan-300 hover:text-white bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-500/40 px-2.5 py-1 rounded-lg flex items-center gap-1 font-semibold transition"
+                            >
+                              <span>Open OpenAI Platform</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                          <div className="flex flex-col gap-1.5 text-[11px] text-slate-300 leading-relaxed">
+                            <div className="flex items-start gap-2">
+                              <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+                              <span>Sign in or create an account at the <strong>OpenAI Developer Platform</strong>.</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+                              <span>Go to <strong>API Keys</strong> and click <strong>"+ Create new secret key"</strong>.</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
+                              <span>Give it an optional name (e.g., <em>JRUSS AI TOOL</em>) and copy the generated key immediately (starts with <code className="text-cyan-300">sk-...</code>).</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">4</span>
+                              <span>Paste the key in the field above — models are <strong>auto-detected</strong> immediately.</span>
+                            </div>
+                          </div>
+                          <div className="p-2 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-[10px] text-cyan-300 flex items-center gap-1.5">
+                            <span>💡 <strong>Note:</strong> Requires an OpenAI developer account with an active credit balance.</span>
+                          </div>
                         </div>
-                        <div className="flex items-start gap-2">
-                          <span className="w-4 h-4 rounded-full bg-violet-500/20 text-violet-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
-                          <span>Select an existing project or choose <strong>"Create key in new project"</strong>, then copy the key.</span>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <span className="w-4 h-4 rounded-full bg-violet-500/20 text-violet-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">4</span>
-                          <span>Paste the key in the field above and click <strong>"Detect Models"</strong>.</span>
-                        </div>
-                      </div>
-                      <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-[10px] text-emerald-300 flex items-center gap-1.5">
-                        <span>⚡ <strong>100% Free:</strong> No credit card required. Free tier includes 1,500 requests/day for Gemini 3.8 Flash.</span>
-                      </div>
+                      )}
                     </div>
                   ) : (
-                    <div className="mt-3 p-3.5 rounded-xl bg-slate-950/70 border border-cyan-500/25 text-xs flex flex-col gap-2.5">
-                      <div className="flex items-center justify-between flex-wrap gap-2">
-                        <span className="font-bold text-white flex items-center gap-1.5 text-xs">
-                          <HelpCircle className="w-4 h-4 text-cyan-400 shrink-0" />
-                          How to get your OpenAI API Key:
+                    <div className="mt-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowClaudeGuide(!showClaudeGuide)}
+                        className="w-full px-3 py-2 rounded-xl bg-amber-600/15 hover:bg-amber-600/25 border border-amber-500/30 text-xs text-amber-200 flex items-center justify-between transition group"
+                      >
+                        <span className="flex items-center gap-1.5 font-semibold text-amber-300">
+                          <HelpCircle className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+                          <span>How to get your Anthropic Claude API Key (Beta)</span>
                         </span>
-                        <a 
-                          href="https://platform.openai.com/api-keys" 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-[11px] text-cyan-300 hover:text-white bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-500/40 px-2.5 py-1 rounded-lg flex items-center gap-1 font-semibold transition"
-                        >
-                          <span>Open OpenAI Platform</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-                      <div className="flex flex-col gap-1.5 text-[11px] text-slate-300 leading-relaxed">
-                        <div className="flex items-start gap-2">
-                          <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
-                          <span>Sign in or create an account at the <strong>OpenAI Developer Platform</strong>.</span>
+                        <span className="text-[11px] text-amber-400 flex items-center gap-1 font-medium">
+                          {showClaudeGuide ? 'Hide Guide' : 'Show Step-by-Step'}
+                          {showClaudeGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </span>
+                      </button>
+
+                      {showClaudeGuide && (
+                        <div className="mt-2 p-3.5 rounded-xl bg-slate-950/80 border border-amber-500/25 text-xs flex flex-col gap-2.5">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <span className="font-bold text-white flex items-center gap-1.5 text-xs">
+                              <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                              Anthropic Console Setup (Beta):
+                            </span>
+                            <a
+                              href="https://console.anthropic.com/settings/keys"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-amber-300 hover:text-white bg-amber-600/30 hover:bg-amber-600/50 border border-amber-500/40 px-2.5 py-1 rounded-lg flex items-center gap-1 font-semibold transition"
+                            >
+                              <span>Open Anthropic Console</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                          <div className="flex flex-col gap-1.5 text-[11px] text-slate-300 leading-relaxed">
+                            <div className="flex items-start gap-2">
+                              <span className="w-4 h-4 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+                              <span>Sign in or create an account at the <strong>Anthropic Console</strong> (console.anthropic.com).</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="w-4 h-4 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+                              <span>Navigate to <strong>API Keys</strong> and click <strong>"Create Key"</strong>.</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="w-4 h-4 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
+                              <span>Name the key (e.g., <em>JRUSS AI TOOL</em>) and copy the secret key immediately (starts with <code className="text-amber-300 font-mono">sk-ant-...</code>).</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <span className="w-4 h-4 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">4</span>
+                              <span>Paste your key in the field above — models are <strong>auto-detected</strong> immediately.</span>
+                            </div>
+                          </div>
+                          <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[10px] text-amber-300 flex items-center gap-1.5">
+                            <span>⚠️ <strong>Beta Feature:</strong> Requires an Anthropic Console account with an active credit balance or trial credit. Direct browser requests enabled.</span>
+                          </div>
                         </div>
-                        <div className="flex items-start gap-2">
-                          <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
-                          <span>Go to <strong>API Keys</strong> and click <strong>"+ Create new secret key"</strong>.</span>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
-                          <span>Give it an optional name (e.g., <em>JRUSS AI TOOL</em>) and copy the generated key immediately (starts with <code className="text-cyan-300">sk-...</code>).</span>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">4</span>
-                          <span>Paste the key in the field above and click <strong>"Detect Models"</strong>.</span>
-                        </div>
-                      </div>
-                      <div className="p-2 bg-cyan-500/10 border border-cyan-500/20 rounded-lg text-[10px] text-cyan-300 flex items-center gap-1.5">
-                        <span>💡 <strong>Note:</strong> Requires an OpenAI developer account with an active credit balance.</span>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2332,7 +2600,7 @@ export default function App() {
                           </span>
                         )}
                       </div>
-                      
+
                       {/* Tier Filter tabs */}
                       <div className="flex items-center gap-1 bg-slate-950/60 p-0.5 rounded-lg border border-white/5">
                         <button
@@ -2374,13 +2642,12 @@ export default function App() {
                                 setModel(m.id);
                                 setCustomModel('');
                               }}
-                              className={`settings-model-item ${
-                                isSelected
-                                  ? isFree 
-                                    ? 'selected-free' 
+                              className={`settings-model-item ${isSelected
+                                  ? isFree
+                                    ? 'selected-free'
                                     : 'selected-paid'
                                   : ''
-                              }`}
+                                }`}
                             >
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -2395,11 +2662,10 @@ export default function App() {
                                 <p className="text-[11px] text-slate-400 m-0 mt-1 leading-relaxed">{m.description}</p>
                               </div>
                               <div className="pt-0.5 shrink-0">
-                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                                  isSelected 
-                                    ? isFree ? 'border-emerald-400 bg-emerald-500 text-black' : 'border-indigo-400 bg-indigo-500 text-white' 
+                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected
+                                    ? isFree ? 'border-emerald-400 bg-emerald-500 text-black' : 'border-indigo-400 bg-indigo-500 text-white'
                                     : 'border-white/20 bg-slate-950/60'
-                                }`}>
+                                  }`}>
                                   {isSelected && <Check className="w-3 h-3" />}
                                 </div>
                               </div>
@@ -2422,7 +2688,7 @@ export default function App() {
                       </p>
                     </div>
                   </div>
-                ) : (
+                ) : provider === 'openai' ? (
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">OpenAI Model Selection</label>
@@ -2455,9 +2721,58 @@ export default function App() {
                               <p className="text-[11px] text-slate-400 m-0 mt-1">{m.description}</p>
                             </div>
                             <div className="pt-0.5 shrink-0">
-                              <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                                isSelected ? 'border-cyan-400 bg-cyan-500 text-black' : 'border-white/20 bg-slate-950/60'
-                              }`}>
+                              <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'border-cyan-400 bg-cyan-500 text-black' : 'border-white/20 bg-slate-950/60'
+                                }`}>
+                                {isSelected && <Check className="w-3 h-3" />}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Anthropic Claude Model Selection (Beta)</label>
+                        {detectedClaudeModels && (
+                          <span className="text-[9px] px-1.5 py-0.2 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-full font-mono">
+                            ● Live ({detectedClaudeModels.length})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto pr-1">
+                      {availableClaudeList.map(m => {
+                        const isSelected = model === m.id && !customModel.trim();
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => {
+                              setModel(m.id);
+                              setCustomModel('');
+                            }}
+                            className={`settings-model-item ${isSelected ? 'selected-claude' : ''}`}
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-bold text-white">{m.name}</span>
+                                <span className="tier-badge-claude">
+                                  {m.badge}
+                                </span>
+                                {m.speed && (
+                                  <span className="text-[9px] text-slate-400 font-mono">
+                                    • {m.speed}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-400 m-0 mt-1 leading-relaxed">{m.description}</p>
+                            </div>
+                            <div className="pt-0.5 shrink-0">
+                              <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'border-amber-400 bg-amber-500 text-black' : 'border-white/20 bg-slate-950/60'
+                                }`}>
                                 {isSelected && <Check className="w-3 h-3" />}
                               </div>
                             </div>
@@ -2474,9 +2789,15 @@ export default function App() {
                     <span>Custom Model ID (Optional Override)</span>
                     <span className="text-[10px] text-slate-500">Overrides preset above</span>
                   </label>
-                  <input 
-                    type="text" 
-                    placeholder={provider === 'gemini' ? "e.g., gemini-3.8-pro or gemini-3.8-flash-preview" : "e.g., gpt-4o or o3-mini"}
+                  <input
+                    type="text"
+                    placeholder={
+                      provider === 'gemini'
+                        ? "e.g., gemini-4-argon or gemini-3.8-pro"
+                        : provider === 'openai'
+                        ? "e.g., gpt-4o or o3-mini"
+                        : "e.g., claude-3-7-sonnet-latest or claude-3-5-haiku-latest"
+                    }
                     value={customModel}
                     onChange={(e) => setCustomModel(e.target.value)}
                     className="w-full bg-slate-900 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-violet-500 font-mono"
@@ -2491,7 +2812,7 @@ export default function App() {
                 <span className="text-xs text-slate-400">
                   Active: <strong className="text-white font-mono">{customModel.trim() || model}</strong>
                 </span>
-                <button 
+                <button
                   onClick={() => setShowSettingsModal(false)}
                   className="btn-mode-tab btn-mode-active-doc hover-scale shadow-lg"
                   style={{ maxWidth: '220px' }}
@@ -2506,33 +2827,37 @@ export default function App() {
 
       {/* Software Updates Modal */}
       {showUpdateModal && (
-        <div className="fixed inset-0 z-50 bg-[#080b11]/90 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto" onClick={() => setShowUpdateModal(false)}>
+        <div
+          className="fixed inset-0 z-50 bg-[#080b11]/90 backdrop-blur-md overflow-y-auto p-3 sm:p-5 flex justify-center items-start"
+          onClick={() => setShowUpdateModal(false)}
+        >
           <DotField />
-          <StarBorder className="w-full max-w-xl relative z-10 my-8" color="#06b6d4">
-            <SpotlightCard 
-              className="bg-[#0b0f19]/95 border-0 p-6 sm:p-7 flex flex-col gap-6" 
+          <StarBorder className="w-full max-w-xl relative z-10 my-auto py-2 sm:py-4 max-h-[92vh] flex flex-col" color="#06b6d4">
+            <SpotlightCard
+              className="bg-[#0b0f19]/95 border-0 p-4 sm:p-6 flex flex-col max-h-[90vh] overflow-hidden"
+              contentClassName="flex flex-col h-full max-h-full overflow-hidden"
               spotlightColor="rgba(6, 182, 212, 0.15)"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between pb-4 border-b border-white/10">
+              <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-white/10 shrink-0">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-2 bg-cyan-600/20 rounded-xl border border-cyan-500/30">
+                  <div className="p-2 bg-cyan-600/20 rounded-xl border border-cyan-500/30 shrink-0">
                     <CloudDownload className="w-5 h-5 text-cyan-400" />
                   </div>
                   <div>
-                    <h2 className="text-lg text-white m-0 font-bold">Application Updates</h2>
-                    <p className="text-xs text-slate-400 m-0 mt-0.5">Check for newer versions and download the latest installer</p>
+                    <h2 className="text-base sm:text-lg text-white m-0 font-bold">Application Updates</h2>
+                    <p className="text-[11px] sm:text-xs text-slate-400 m-0 mt-0.5">Check for newer versions and download the latest installer</p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => setShowUpdateModal(false)}
-                  className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded hover:bg-white/5 font-semibold"
+                  className="text-xs text-slate-400 hover:text-white px-2.5 py-1.5 rounded-lg hover:bg-white/10 font-semibold transition shrink-0 ml-2"
                 >
                   ✕ Close
                 </button>
               </div>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex-1 overflow-y-auto pr-1 sm:pr-1.5 py-3 flex flex-col gap-4 overscroll-contain">
                 {/* Current Version Card */}
                 <div className="p-4 rounded-xl bg-slate-900/80 border border-white/10 flex items-center justify-between">
                   <div>
@@ -2554,8 +2879,8 @@ export default function App() {
                     <span className="text-[10px] text-slate-500">Release Source</span>
                   </label>
                   <div className="flex gap-2">
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       placeholder="e.g. JamieRussell/TeacherSummary"
                       value={githubRepoInput}
                       onChange={(e) => setGithubRepoInput(e.target.value)}
@@ -2628,10 +2953,10 @@ export default function App() {
                 )}
               </div>
 
-              <div className="pt-4 border-t border-white/10 flex justify-end">
-                <button 
+              <div className="pt-3 sm:pt-4 border-t border-white/10 flex justify-end shrink-0 bg-[#0b0f19]/95">
+                <button
                   onClick={() => setShowUpdateModal(false)}
-                  className="btn-mode-tab btn-mode-active-doc hover-scale shadow-lg"
+                  className="btn-mode-tab btn-mode-active-doc hover-scale shadow-lg text-xs"
                   style={{ maxWidth: '160px' }}
                 >
                   Done

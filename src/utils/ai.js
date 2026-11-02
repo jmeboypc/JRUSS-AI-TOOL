@@ -137,6 +137,79 @@ async function callOpenAI(apiKey, model, systemPrompt, userPrompt) {
 }
 
 /**
+ * Calls the Anthropic Claude Messages API.
+ * @param {string} apiKey 
+ * @param {string} model 
+ * @param {string} systemPrompt 
+ * @param {string} userPrompt 
+ * @returns {Promise<string>}
+ */
+async function callAnthropic(apiKey, model, systemPrompt, userPrompt) {
+  const url = 'https://api.anthropic.com/v1/messages';
+  
+  const body = {
+    model: model || 'claude-3-7-sonnet-latest',
+    max_tokens: 4096,
+    messages: [
+      { role: 'user', content: userPrompt }
+    ]
+  };
+
+  if (systemPrompt && systemPrompt.trim()) {
+    body.system = systemPrompt.trim();
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey.trim(),
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    let errMsg = `Anthropic API returned status ${response.status}`;
+    try {
+      const errorJson = await response.json();
+      if (errorJson.error && errorJson.error.message) {
+        errMsg = errorJson.error.message;
+      }
+    } catch {
+      // ignore
+    }
+
+    if (response.status === 401) {
+      throw new Error(`Anthropic Authentication Error (401): ${errMsg || 'Invalid Claude API key. Keys typically start with sk-ant-.'}`);
+    } else if (response.status === 429) {
+      throw new Error(`Anthropic Rate Limit Reached (429): ${errMsg || 'Rate limit or account credit limit reached. Please check console.anthropic.com.'}`);
+    } else if (response.status === 404) {
+      throw new Error(`Claude Model '${model}' Not Found (404): ${errMsg || 'Please verify the model ID in Engine Settings.'}`);
+    } else {
+      throw new Error(`Anthropic API error (${response.status}): ${errMsg}`);
+    }
+  }
+
+  const data = await response.json();
+
+  if (!data.content || !Array.isArray(data.content)) {
+    throw new Error("Anthropic returned unexpected response payload: " + JSON.stringify(data));
+  }
+
+  const textParts = data.content
+    .filter(part => part.type === 'text' && part.text)
+    .map(part => part.text);
+
+  if (textParts.length === 0) {
+    throw new Error("No text content returned from Claude model.");
+  }
+
+  return textParts.join('\n');
+}
+
+/**
  * Main AI generation entrypoint
  * @param {object} params
  * @param {string} params.provider - 'gemini' or 'openai'
@@ -155,6 +228,8 @@ export async function generateContent({ provider, apiKey, model, systemPrompt, u
     return await callGemini(apiKey.trim(), model, systemPrompt, userPrompt);
   } else if (provider === 'openai') {
     return await callOpenAI(apiKey.trim(), model, systemPrompt, userPrompt);
+  } else if (provider === 'claude' || provider === 'anthropic') {
+    return await callAnthropic(apiKey.trim(), model, systemPrompt, userPrompt);
   } else {
     throw new Error(`Unsupported provider: ${provider}`);
   }
@@ -200,6 +275,8 @@ export async function fetchAvailableGeminiModels(apiKey) {
     .map(m => {
       const id = m.name.replace(/^models\//, '');
       const lower = id.toLowerCase();
+      const isArgon = lower.includes('argon');
+      const isGemini4 = lower.includes('gemini-4') || lower.includes('gemini4') || isArgon;
       const isFlash = lower.includes('flash');
       const isPro = lower.includes('pro');
       const isLite = lower.includes('lite');
@@ -208,13 +285,21 @@ export async function fetchAvailableGeminiModels(apiKey) {
       let badge = 'Available';
       let speed = 'Standard';
 
-      if (isFlash) {
+      if (isArgon) {
+        tier = 'paid';
+        badge = 'Flagship Reasoning (Gemini 4 Argon)';
+        speed = 'Deep Reasoning';
+      } else if (isFlash) {
         tier = 'free';
         badge = isLite ? 'Free Tier (Lightweight)' : 'Free Tier (1,500 req/day)';
         speed = isLite ? 'Instant' : 'Ultra Fast';
       } else if (isPro) {
         tier = 'paid';
         badge = 'Paid / Pro Tier (Deep Reasoning)';
+        speed = 'Deep Reasoning';
+      } else if (isGemini4) {
+        tier = 'paid';
+        badge = 'Gemini 4 Flagship';
         speed = 'Deep Reasoning';
       }
 
@@ -229,11 +314,13 @@ export async function fetchAvailableGeminiModels(apiKey) {
         speed,
         isFlash,
         isPro,
+        isArgon,
+        isGemini4,
         recommended: id === 'gemini-3.8-flash-lite' || id === 'gemini-3.8-flash' || id === 'gemini-3.5-flash-lite' || (isFlash && is38)
       };
     });
 
-  // Sort so newest Flash-Lite / Flash (3.8 / 3.5) are on top, followed by other Flash, then Pro, then others
+  // Sort so newest Flash-Lite / Flash (3.8 / 3.5) are on top for free educators, followed by Gemini 4 Argon, then other Flash, Pro, and others
   contentModels.sort((a, b) => {
     if (a.id === 'gemini-3.8-flash-lite') return -1;
     if (b.id === 'gemini-3.8-flash-lite') return 1;
@@ -243,6 +330,10 @@ export async function fetchAvailableGeminiModels(apiKey) {
     if (b.id === 'gemini-3.5-flash-lite') return 1;
     if (a.id === 'gemini-3.5-flash') return -1;
     if (b.id === 'gemini-3.5-flash') return 1;
+
+    // Prioritize Gemini 4 Argon flagship
+    if (a.id.toLowerCase().includes('argon') && !b.id.toLowerCase().includes('argon')) return -1;
+    if (!a.id.toLowerCase().includes('argon') && b.id.toLowerCase().includes('argon')) return 1;
 
     const a38 = a.id.includes('3.8') || a.id.includes('3-8');
     const b38 = b.id.includes('3.8') || b.id.includes('3-8');
@@ -256,6 +347,10 @@ export async function fetchAvailableGeminiModels(apiKey) {
 
     if (a.isFlash && !b.isFlash) return -1;
     if (!a.isFlash && b.isFlash) return 1;
+
+    if (a.isGemini4 && !b.isGemini4) return -1;
+    if (!a.isGemini4 && b.isGemini4) return 1;
+
     if (a.isPro && !b.isPro) return -1;
     if (!a.isPro && b.isPro) return 1;
     return a.name.localeCompare(b.name);
@@ -315,4 +410,133 @@ export async function fetchAvailableOpenAIModels(apiKey) {
 
   chatModels.sort((a, b) => a.id.localeCompare(b.id));
   return chatModels;
+}
+
+/**
+ * Default vetted Anthropic Claude model presets
+ */
+export const CLAUDE_DEFAULT_PRESETS = [
+  {
+    id: 'claude-3-7-sonnet-latest',
+    name: 'Claude 3.7 Sonnet (Beta)',
+    tier: 'premium',
+    badge: 'Flagship Hybrid Reasoning',
+    speed: 'Deep Reasoning',
+    description: 'Anthropic\'s latest flagship model with hybrid instant/extended thinking capabilities for advanced lesson design and deep subject analysis.'
+  },
+  {
+    id: 'claude-3-5-sonnet-latest',
+    name: 'Claude 3.5 Sonnet (Beta)',
+    tier: 'premium',
+    badge: 'High Intelligence & Speed',
+    speed: 'Fast Reasoning',
+    description: 'Top-tier Anthropic model widely acclaimed for sophisticated pedagogy, nuanced student scaffolding, and structured schemas.'
+  },
+  {
+    id: 'claude-3-5-haiku-latest',
+    name: 'Claude 3.5 Haiku (Beta)',
+    tier: 'standard',
+    badge: 'Ultra Fast & Affordable',
+    speed: 'Instant',
+    description: 'Rapid, lightweight Claude model designed for instant classroom summaries, worksheets, and quick pedagogical tasks.'
+  },
+  {
+    id: 'claude-3-opus-latest',
+    name: 'Claude 3 Opus (Beta)',
+    tier: 'premium',
+    badge: 'Deep Pedagogical Depth',
+    speed: 'Deep Reasoning',
+    description: 'Heavyweight reasoning model for complex curriculum plans and multi-stage academic schemes of work.'
+  }
+];
+
+/**
+ * Fetches available models for an Anthropic Claude API key.
+ * @param {string} apiKey 
+ * @returns {Promise<Array<{ id: string, name: string, description: string, tier: string, badge: string, speed: string }>>}
+ */
+export async function fetchAvailableClaudeModels(apiKey) {
+  if (!apiKey || !apiKey.trim()) {
+    throw new Error("Claude API key is required to detect models.");
+  }
+
+  const trimmed = apiKey.trim();
+  const url = 'https://api.anthropic.com/v1/models';
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'x-api-key': trimmed,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+        const models = data.data
+          .filter(m => m.id && m.id.startsWith('claude'))
+          .map(m => {
+            const id = m.id;
+            const lower = id.toLowerCase();
+            const isHaiku = lower.includes('haiku');
+            const isSonnet = lower.includes('sonnet');
+            const isOpus = lower.includes('opus');
+            const is37 = lower.includes('3-7') || lower.includes('3.7');
+
+            let badge = 'Available';
+            let speed = 'Fast';
+            let tier = 'premium';
+
+            if (isHaiku) {
+              badge = 'Ultra Fast & Affordable';
+              speed = 'Instant';
+              tier = 'standard';
+            } else if (is37) {
+              badge = 'Flagship Hybrid Reasoning';
+              speed = 'Deep Reasoning';
+              tier = 'premium';
+            } else if (isSonnet) {
+              badge = 'High Intelligence & Speed';
+              speed = 'Fast Reasoning';
+              tier = 'premium';
+            } else if (isOpus) {
+              badge = 'Deep Pedagogical Depth';
+              speed = 'Deep Reasoning';
+              tier = 'premium';
+            }
+
+            return {
+              id,
+              name: m.display_name ? `${m.display_name} (Beta)` : `${id} (Beta)`,
+              description: isHaiku ? 'Fast, lightweight Claude model for instant classroom tasks.' : 'Advanced intelligence Anthropic model for secondary lesson plans.',
+              tier,
+              badge,
+              speed
+            };
+          });
+
+        if (models.length > 0) {
+          models.sort((a, b) => {
+            if (a.id.includes('3-7') && !b.id.includes('3-7')) return -1;
+            if (!a.id.includes('3-7') && b.id.includes('3-7')) return 1;
+            if (a.id.includes('3-5-sonnet') && !b.id.includes('3-5-sonnet')) return -1;
+            if (!a.id.includes('3-5-sonnet') && b.id.includes('3-5-sonnet')) return 1;
+            return a.name.localeCompare(b.name);
+          });
+          return models;
+        }
+      }
+    } else if (response.status === 401) {
+      throw new Error(`Invalid Claude API Key (401): Please verify your Anthropic key.`);
+    }
+  } catch (err) {
+    if (err.message && err.message.includes('401')) {
+      throw err;
+    }
+    // Fallback gracefully to vetted Claude presets
+  }
+
+  return CLAUDE_DEFAULT_PRESETS;
 }

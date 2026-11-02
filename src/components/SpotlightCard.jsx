@@ -1,6 +1,12 @@
 import React, { useState, useRef } from 'react';
 
-export default function SpotlightCard({ children, className = "", spotlightColor = "rgba(139, 92, 246, 0.15)", ...props }) {
+export default function SpotlightCard({ 
+  children, 
+  className = "", 
+  contentClassName = "", 
+  spotlightColor = "rgba(139, 92, 246, 0.15)", 
+  ...props 
+}) {
   const cardRef = useRef(null);
   const [coords, setCoords] = useState({ x: 0, y: 0 });
   const [isFocused, setIsFocused] = useState(false);
@@ -38,7 +44,7 @@ export default function SpotlightCard({ children, className = "", spotlightColor
           }}
         />
       )}
-      <div className="relative z-10">
+      <div className={`relative z-10 ${contentClassName}`}>
         {children}
       </div>
     </div>

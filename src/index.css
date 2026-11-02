@@ -498,6 +498,12 @@ h1, h2, h3, h4, h5, h6 {
   color: #fff;
   box-shadow: 0 4px 15px rgba(6, 182, 212, 0.2);
 }
+.settings-provider-card.active-claude {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.2);
+}
 
 .settings-model-item {
   padding: 0.75rem 1rem;
@@ -534,6 +540,25 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(6, 182, 212, 0.12);
   color: #ffffff;
   box-shadow: 0 4px 15px rgba(6, 182, 212, 0.15);
+}
+.settings-model-item.selected-claude {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  color: #ffffff;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.15);
+}
+.tier-badge-claude {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  letter-spacing: 0.02em;
 }
 
 /* General Layout Utilities */
