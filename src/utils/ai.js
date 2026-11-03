@@ -29,7 +29,7 @@ export function sanitizeApiKey(key) {
 async function callGemini(apiKey, model, systemPrompt, userPrompt) {
   const cleanKey = sanitizeApiKey(apiKey);
   const cleanModel = (model || '').trim();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${encodeURIComponent(cleanKey)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent`;
   
   // Prepend system prompt inside the main user contents block to prevent version compatibility issues with 'systemInstruction'
   const combinedText = systemPrompt 
@@ -69,7 +69,7 @@ async function callGemini(apiKey, model, systemPrompt, userPrompt) {
     }
 
     if (response.status === 401) {
-      throw new Error(`Gemini Authentication Error (401): API key rejected by Google. Please verify that your key starts with "AIzaSy" and was created at aistudio.google.com/apikey with the Generative Language API enabled.`);
+      throw new Error(`Gemini Authentication Error (401): API key rejected by Google (${rawMsg || 'API key not valid'}). Please ensure your key was created at aistudio.google.com/apikey with the Generative Language API enabled. If created under an existing project, try clicking "Create API key in new project".`);
     } else if (response.status === 429) {
       throw new Error(`Gemini Free/Paid Tier Rate Limit Reached (429): ${rawMsg || 'Too many requests or daily quota exceeded. If using the Free Tier, wait 30-60 seconds or switch to a Flash model in Engine Settings.'}`);
     } else if (response.status === 404) {
@@ -272,7 +272,7 @@ export async function fetchAvailableGeminiModels(apiKey) {
     throw new Error("Gemini API key is required to detect models.");
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanKey)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models`;
   const response = await fetch(url, {
     headers: {
       'x-goog-api-key': cleanKey
@@ -290,7 +290,7 @@ export async function fetchAvailableGeminiModels(apiKey) {
       // ignore
     }
     if (response.status === 401 || response.status === 400 || response.status === 403) {
-      throw new Error(`Invalid Gemini API Key (${response.status}): ${errMsg || 'Key rejected by Google. Ensure it was created at aistudio.google.com/apikey'}`);
+      throw new Error(`Invalid Gemini API Key (${response.status}): ${errMsg || 'Key rejected by Google. Ensure it was created at aistudio.google.com/apikey with Generative Language API enabled.'}`);
     }
     throw new Error(errMsg);
   }

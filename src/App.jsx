@@ -730,16 +730,10 @@ export default function App() {
   const [showClaudeGuide, setShowClaudeGuide] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [updateStatus, setUpdateStatus] = useState({ checking: false, checked: false, available: false, latestVersion: '2.5.5', releaseUrl: '', downloadUrl: '', error: null, notes: '' });
-  const [githubRepoInput, setGithubRepoInput] = useState(() => {
-    const saved = localStorage.getItem('app_update_repo');
-    if (!saved || saved.toLowerCase().includes('jamierussell') || saved.toLowerCase().includes('teachersummary')) {
-      return 'jmeboypc/JRUSS-AI-TOOL';
-    }
-    return saved;
-  });
 
-  // Current app version constant
+  // Current app version & fixed official update repository
   const CURRENT_APP_VERSION = '2.5.5';
+  const GITHUB_UPDATE_REPO = 'jmeboypc/JRUSS-AI-TOOL';
 
   // Education Stage State ('secondary' | 'primary')
   const [educationStage, setEducationStage] = useState(() => localStorage.getItem('ai_education_stage') || 'secondary');
@@ -898,36 +892,19 @@ export default function App() {
     } else {
       localStorage.removeItem('ai_detected_claude_models');
     }
-    if (githubRepoInput) {
-      localStorage.setItem('app_update_repo', githubRepoInput.trim());
-    }
     if (presentationSlides) {
       localStorage.setItem('ai_presentation_slides', presentationSlides);
     }
     if (exportOrientation) {
       localStorage.setItem('ai_export_orientation', exportOrientation);
     }
-  }, [provider, apiKey, model, customModel, inputMode, promptTopic, homeworkDuration, presentationSlides, exportOrientation, educationStage, detectedGeminiModels, detectedOpenAIModels, detectedClaudeModels, githubRepoInput]);
+  }, [provider, apiKey, model, customModel, inputMode, promptTopic, homeworkDuration, presentationSlides, exportOrientation, educationStage, detectedGeminiModels, detectedOpenAIModels, detectedClaudeModels]);
 
-  // Check for app updates against GitHub releases
-  const handleCheckForUpdates = async (repoName = githubRepoInput) => {
-    const cleanRepo = (repoName || '').trim();
-    if (!cleanRepo || !cleanRepo.includes('/')) {
-      setUpdateStatus({
-        checking: false,
-        checked: true,
-        available: false,
-        latestVersion: CURRENT_APP_VERSION,
-        releaseUrl: '',
-        notes: '',
-        error: 'Please enter a valid GitHub repository in "owner/repository" format (e.g. JamieRussell/TeacherSummary).'
-      });
-      return;
-    }
-
+  // Check for app updates against GitHub releases (fixed to official repo)
+  const handleCheckForUpdates = async () => {
     setUpdateStatus(prev => ({ ...prev, checking: true, error: null }));
     try {
-      const response = await fetch(`https://api.github.com/repos/${cleanRepo}/releases/latest`, {
+      const response = await fetch(`https://api.github.com/repos/${GITHUB_UPDATE_REPO}/releases/latest`, {
         headers: {
           'Accept': 'application/vnd.github.v3+json'
         }
@@ -935,7 +912,7 @@ export default function App() {
 
       if (!response.ok) {
         if (response.status === 404) {
-          throw new Error(`No published releases found on GitHub repo "${cleanRepo}". Once you publish a release with the .msi, it will appear here.`);
+          throw new Error(`No published releases found on GitHub repo "${GITHUB_UPDATE_REPO}". Once you publish a release with the .msi, it will appear here.`);
         }
         throw new Error(`GitHub API returned status ${response.status}: ${response.statusText}`);
       }
@@ -943,7 +920,7 @@ export default function App() {
       const releaseData = await response.json();
       const tagName = (releaseData.tag_name || '').replace(/^v/i, '').trim();
       const notes = releaseData.body || 'No release notes provided.';
-      const releaseUrl = releaseData.html_url || `https://github.com/${cleanRepo}/releases`;
+      const releaseUrl = releaseData.html_url || `https://github.com/${GITHUB_UPDATE_REPO}/releases`;
 
       // Look for attached .msi or setup file in assets
       const assets = releaseData.assets || [];
@@ -984,6 +961,35 @@ export default function App() {
       });
     }
   };
+
+  // Automated background update check on app launch & hourly interval
+  useEffect(() => {
+    const startupTimer = setTimeout(() => {
+      handleCheckForUpdates();
+    }, 1500);
+
+    const hourlyTimer = setInterval(() => {
+      handleCheckForUpdates();
+    }, 60 * 60 * 1000);
+
+    return () => {
+      clearTimeout(startupTimer);
+      clearInterval(hourlyTimer);
+    };
+  }, []);
+
+  // Global link handler: ensure any clicked external URL opens in default system browser
+  useEffect(() => {
+    const handleGlobalLinkClick = (e) => {
+      const anchor = e.target.closest('a');
+      if (anchor && anchor.href && /^https?:\/\//i.test(anchor.href)) {
+        anchor.setAttribute('target', '_blank');
+        anchor.setAttribute('rel', 'noopener noreferrer');
+      }
+    };
+    document.addEventListener('click', handleGlobalLinkClick);
+    return () => document.removeEventListener('click', handleGlobalLinkClick);
+  }, []);
 
   // Handle provider changes & pick default models
   const handleSelectProvider = (nextProvider) => {
@@ -2987,30 +2993,22 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* GitHub Repository Setting */}
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
-                    <span>GitHub Update Repository (owner/repo)</span>
-                    <span className="text-[10px] text-slate-500">Release Source</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="e.g. JamieRussell/TeacherSummary"
-                      value={githubRepoInput}
-                      onChange={(e) => setGithubRepoInput(e.target.value)}
-                      className="flex-1 bg-slate-900 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleCheckForUpdates(githubRepoInput)}
-                      disabled={updateStatus.checking}
-                      className="px-3.5 py-2 rounded-xl border border-cyan-500/40 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-40"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${updateStatus.checking ? 'animate-spin' : ''}`} />
-                      <span>{updateStatus.checking ? 'Checking...' : 'Check Now'}</span>
-                    </button>
+                {/* Official Release Channel Display */}
+                <div className="p-3.5 rounded-xl bg-slate-900 border border-white/10 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Official Release Channel</span>
+                    <span className="text-xs font-mono text-cyan-300 font-medium">{GITHUB_UPDATE_REPO}</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">Automated checks active at startup &amp; every hour</span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCheckForUpdates()}
+                    disabled={updateStatus.checking}
+                    className="px-3.5 py-2 rounded-xl border border-cyan-500/40 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition disabled:opacity-40"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${updateStatus.checking ? 'animate-spin' : ''}`} />
+                    <span>{updateStatus.checking ? 'Checking...' : 'Check Now'}</span>
+                  </button>
                 </div>
 
                 {/* Status Box */}
