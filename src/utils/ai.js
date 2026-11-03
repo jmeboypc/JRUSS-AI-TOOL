@@ -1,4 +1,24 @@
 /**
+ * Sanitizes and deduplicates API keys (e.g. from accidental paste doubling or quotes)
+ * @param {string} key
+ * @returns {string}
+ */
+export function sanitizeApiKey(key) {
+  if (!key) return '';
+  let clean = key.trim().replace(/^["']|["']$/g, '');
+  if (clean.startsWith('AQ.') && clean.indexOf('AQ.', 3) !== -1) {
+    clean = clean.substring(0, clean.indexOf('AQ.', 3));
+  } else if (clean.startsWith('AIza') && clean.indexOf('AIza', 4) !== -1) {
+    clean = clean.substring(0, clean.indexOf('AIza', 4));
+  } else if (clean.startsWith('sk-ant-') && clean.indexOf('sk-ant-', 7) !== -1) {
+    clean = clean.substring(0, clean.indexOf('sk-ant-', 7));
+  } else if (clean.startsWith('sk-') && clean.indexOf('sk-', 3) !== -1) {
+    clean = clean.substring(0, clean.indexOf('sk-', 3));
+  }
+  return clean;
+}
+
+/**
  * Calls the Google Gemini API to generate content.
  * @param {string} apiKey 
  * @param {string} model 
@@ -7,7 +27,9 @@
  * @returns {Promise<string>}
  */
 async function callGemini(apiKey, model, systemPrompt, userPrompt) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const cleanKey = sanitizeApiKey(apiKey);
+  const cleanModel = (model || '').trim();
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${encodeURIComponent(cleanKey)}`;
   
   // Prepend system prompt inside the main user contents block to prevent version compatibility issues with 'systemInstruction'
   const combinedText = systemPrompt 
@@ -29,7 +51,8 @@ async function callGemini(apiKey, model, systemPrompt, userPrompt) {
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'x-goog-api-key': cleanKey
     },
     body: JSON.stringify(body)
   });
@@ -45,12 +68,14 @@ async function callGemini(apiKey, model, systemPrompt, userPrompt) {
       // ignore
     }
 
-    if (response.status === 429) {
+    if (response.status === 401) {
+      throw new Error(`Gemini Authentication Error (401): API key rejected by Google. Please verify that your key starts with "AIzaSy" and was created at aistudio.google.com/apikey with the Generative Language API enabled.`);
+    } else if (response.status === 429) {
       throw new Error(`Gemini Free/Paid Tier Rate Limit Reached (429): ${rawMsg || 'Too many requests or daily quota exceeded. If using the Free Tier, wait 30-60 seconds or switch to a Flash model in Engine Settings.'}`);
     } else if (response.status === 404) {
       throw new Error(`Gemini Model '${model}' Not Found (404): ${rawMsg || 'Please check that this model exists in Google AI Studio or select a recommended model (e.g. gemini-2.5-flash) in Engine Settings.'}`);
     } else if (response.status === 403) {
-      throw new Error(`Gemini Authentication Error (403): ${rawMsg || 'Invalid API key or project permission denied. Please verify your Google AI Studio API key in Engine Settings.'}`);
+      throw new Error(`Gemini Permission / Quota Error (403): ${rawMsg || 'Invalid API key or project permission denied. Please verify your Google AI Studio API key in Engine Settings.'}`);
     } else {
       throw new Error(rawMsg ? `Gemini API error (${response.status}): ${rawMsg}` : `Gemini API returned status ${response.status}`);
     }
@@ -220,16 +245,17 @@ async function callAnthropic(apiKey, model, systemPrompt, userPrompt) {
  * @returns {Promise<string>}
  */
 export async function generateContent({ provider, apiKey, model, systemPrompt, userPrompt }) {
-  if (!apiKey || !apiKey.trim()) {
+  const cleanKey = sanitizeApiKey(apiKey);
+  if (!cleanKey) {
     throw new Error("API Key is missing. Please enter your API Key in the settings.");
   }
   
   if (provider === 'gemini') {
-    return await callGemini(apiKey.trim(), model, systemPrompt, userPrompt);
+    return await callGemini(cleanKey, model, systemPrompt, userPrompt);
   } else if (provider === 'openai') {
-    return await callOpenAI(apiKey.trim(), model, systemPrompt, userPrompt);
+    return await callOpenAI(cleanKey, model, systemPrompt, userPrompt);
   } else if (provider === 'claude' || provider === 'anthropic') {
-    return await callAnthropic(apiKey.trim(), model, systemPrompt, userPrompt);
+    return await callAnthropic(cleanKey, model, systemPrompt, userPrompt);
   } else {
     throw new Error(`Unsupported provider: ${provider}`);
   }
@@ -241,12 +267,17 @@ export async function generateContent({ provider, apiKey, model, systemPrompt, u
  * @returns {Promise<Array<{ id: string, name: string, description: string, tier: 'free' | 'paid' | 'other', badge: string, speed: string, isFlash: boolean, isPro: boolean, recommended?: boolean }>>}
  */
 export async function fetchAvailableGeminiModels(apiKey) {
-  if (!apiKey || !apiKey.trim()) {
+  const cleanKey = sanitizeApiKey(apiKey);
+  if (!cleanKey) {
     throw new Error("Gemini API key is required to detect models.");
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey.trim()}`;
-  const response = await fetch(url);
+  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanKey)}`;
+  const response = await fetch(url, {
+    headers: {
+      'x-goog-api-key': cleanKey
+    }
+  });
 
   if (!response.ok) {
     let errMsg = `Gemini API returned status ${response.status}`;
@@ -258,8 +289,8 @@ export async function fetchAvailableGeminiModels(apiKey) {
     } catch {
       // ignore
     }
-    if (response.status === 400 || response.status === 403) {
-      throw new Error(`Invalid Gemini API Key (${response.status}): ${errMsg}`);
+    if (response.status === 401 || response.status === 400 || response.status === 403) {
+      throw new Error(`Invalid Gemini API Key (${response.status}): ${errMsg || 'Key rejected by Google. Ensure it was created at aistudio.google.com/apikey'}`);
     }
     throw new Error(errMsg);
   }
@@ -303,8 +334,6 @@ export async function fetchAvailableGeminiModels(apiKey) {
         speed = 'Deep Reasoning';
       }
 
-      const is38 = lower.includes('3.8') || lower.includes('3-8');
-
       return {
         id,
         name: m.displayName || id,
@@ -316,20 +345,18 @@ export async function fetchAvailableGeminiModels(apiKey) {
         isPro,
         isArgon,
         isGemini4,
-        recommended: id === 'gemini-3.8-flash-lite' || id === 'gemini-3.8-flash' || id === 'gemini-3.5-flash-lite' || (isFlash && is38)
+        recommended: id === 'gemini-3.5-flash-lite' || id === 'gemini-3.5-flash' || id === 'gemini-3.8-flash'
       };
     });
 
-  // Sort so newest Flash-Lite / Flash (3.8 / 3.5) are on top for free educators, followed by Gemini 4 Argon, then other Flash, Pro, and others
+  // Sort so fastest stable Free Tier (3.5 Flash-Lite / 3.5 Flash / 3.8 Flash) are on top for free educators, followed by Gemini 4 Argon
   contentModels.sort((a, b) => {
-    if (a.id === 'gemini-3.8-flash-lite') return -1;
-    if (b.id === 'gemini-3.8-flash-lite') return 1;
-    if (a.id === 'gemini-3.8-flash') return -1;
-    if (b.id === 'gemini-3.8-flash') return 1;
     if (a.id === 'gemini-3.5-flash-lite') return -1;
     if (b.id === 'gemini-3.5-flash-lite') return 1;
     if (a.id === 'gemini-3.5-flash') return -1;
     if (b.id === 'gemini-3.5-flash') return 1;
+    if (a.id === 'gemini-3.8-flash') return -1;
+    if (b.id === 'gemini-3.8-flash') return 1;
 
     // Prioritize Gemini 4 Argon flagship
     if (a.id.toLowerCase().includes('argon') && !b.id.toLowerCase().includes('argon')) return -1;

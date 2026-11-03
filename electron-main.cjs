@@ -5,7 +5,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1300,
     height: 850,
-    title: 'JRUSS AI TOOL - v2.5.4',
+    title: 'JRUSS AI TOOL - v2.5.5',
     icon: path.join(__dirname, 'icon.ico'),
     autoHideMenuBar: true,
     webPreferences: {
@@ -20,6 +20,24 @@ function createWindow() {
   } else {
     win.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
+
+  // Handle opening secondary windows (e.g. Pupil Whiteboard Projector Window)
+  win.webContents.setWindowOpenHandler(() => {
+    return {
+      action: 'allow',
+      overrideBrowserWindowOptions: {
+        width: 1280,
+        height: 750,
+        autoHideMenuBar: true,
+        title: 'JRUSS AI TOOL - Whiteboard Projector Display',
+        icon: path.join(__dirname, 'icon.ico'),
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+        }
+      }
+    };
+  });
 
   // Open devtools if needed in development
   // win.webContents.openDevTools();

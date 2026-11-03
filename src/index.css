@@ -1052,3 +1052,214 @@ body.primary-theme {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
+
+/* =========================================================================
+   Whiteboard Presentation Mode Typography & High-Visibility Styles
+   ========================================================================= */
+.whiteboard-container-dark {
+  background-color: #0b0f19 !important;
+  color: #f8fafc !important;
+}
+
+.whiteboard-container-light {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+.whiteboard-header-dark {
+  background-color: #0f172a !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.whiteboard-header-light {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.whiteboard-card-dark {
+  background-color: #131b2e !important;
+  border-color: #334155 !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+}
+
+.whiteboard-card-light {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06) !important;
+}
+
+.whiteboard-teacher-notes-dark {
+  background-color: #062c22 !important;
+  border: 2px solid #059669 !important;
+  color: #d1fae5 !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+}
+
+.whiteboard-teacher-notes-light {
+  background-color: #f0fdf4 !important;
+  border: 2px solid #10b981 !important;
+  color: #064e3b !important;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.1) !important;
+}
+
+.whiteboard-menu-dark {
+  background-color: #0f172a !important;
+  border: 1px solid #f59e0b !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.9) !important;
+}
+
+.whiteboard-menu-light {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.15) !important;
+}
+
+.whiteboard-timer-dark {
+  background-color: #131b2e !important;
+  border: 1px solid #8b5cf6 !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.8) !important;
+}
+
+.whiteboard-timer-light {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.15) !important;
+}
+
+.whiteboard-markdown-body {
+  line-height: 1.7;
+}
+
+.whiteboard-markdown-body h1,
+.whiteboard-markdown-body h2,
+.whiteboard-markdown-body h3,
+.whiteboard-markdown-body h4 {
+  font-weight: 800;
+  line-height: 1.3;
+  margin-top: 1.4em;
+  margin-bottom: 0.6em;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.3em;
+}
+
+.whiteboard-markdown-body h1 { font-size: 2.2em; }
+.whiteboard-markdown-body h2 { font-size: 1.75em; }
+.whiteboard-markdown-body h3 { font-size: 1.4em; }
+.whiteboard-markdown-body h4 { font-size: 1.15em; }
+
+.whiteboard-markdown-body p {
+  margin-bottom: 1.1em;
+}
+
+.whiteboard-markdown-body ul,
+.whiteboard-markdown-body ol {
+  padding-left: 2rem;
+  margin-bottom: 1.4em;
+}
+
+.whiteboard-markdown-body li {
+  margin-bottom: 0.5em;
+  line-height: 1.6;
+}
+
+.whiteboard-markdown-body blockquote {
+  border-left: 5px solid #06b6d4;
+  background: rgba(6, 182, 212, 0.08);
+  padding: 0.8rem 1.4rem;
+  border-radius: 0 1rem 1rem 0;
+  margin: 1.4em 0;
+  font-style: italic;
+}
+
+.whiteboard-markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.whiteboard-markdown-body th,
+.whiteboard-markdown-body td {
+  padding: 14px 18px;
+  text-align: left;
+}
+
+/* Dark Classroom Mode */
+.whiteboard-dark {
+  color: #f8fafc;
+}
+
+.whiteboard-dark h1,
+.whiteboard-dark h2,
+.whiteboard-dark h3 {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.whiteboard-dark strong {
+  color: #38bdf8;
+}
+
+.whiteboard-dark table {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.whiteboard-dark th {
+  background-color: #1e293b;
+  color: #38bdf8;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+}
+
+.whiteboard-dark td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.whiteboard-dark tr:nth-child(even) td {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Light Classroom Mode (High Visibility for bright projector / sunlit rooms) */
+.whiteboard-light {
+  color: #0f172a;
+}
+
+.whiteboard-light h1,
+.whiteboard-light h2,
+.whiteboard-light h3 {
+  color: #020617;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.whiteboard-light strong {
+  color: #0284c7;
+}
+
+.whiteboard-light blockquote {
+  border-left-color: #0284c7;
+  background: rgba(2, 132, 199, 0.08);
+  color: #1e293b;
+}
+
+.whiteboard-light table {
+  border: 1px solid #cbd5e1;
+}
+
+.whiteboard-light th {
+  background-color: #f1f5f9;
+  color: #0f172a;
+  border-bottom: 2px solid #cbd5e1;
+}
+
+.whiteboard-light td {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.whiteboard-light tr:nth-child(even) td {
+  background-color: #f8fafc;
+}

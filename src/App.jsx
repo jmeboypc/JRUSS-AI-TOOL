@@ -6,7 +6,7 @@ import {
   Zap, Info, ExternalLink, Lightbulb, Search, CheckCircle2, HelpCircle,
   Clock, GraduationCap, Layers, FileCheck,
   ClipboardList, CloudDownload, ShieldAlert, Presentation,
-  ChevronDown, ChevronUp, Bot
+  ChevronDown, ChevronUp, Bot, Monitor
 } from 'lucide-react';
 import { parseDocument } from './utils/parsers';
 import { 
@@ -14,12 +14,14 @@ import {
   fetchAvailableGeminiModels, 
   fetchAvailableOpenAIModels, 
   fetchAvailableClaudeModels,
-  CLAUDE_DEFAULT_PRESETS 
+  CLAUDE_DEFAULT_PRESETS,
+  sanitizeApiKey
 } from './utils/ai';
 import SpotlightCard from './components/SpotlightCard';
 import DecryptedText from './components/DecryptedText';
 import StarBorder from './components/StarBorder';
 import DotField from './components/DotField';
+import WhiteboardView from './components/WhiteboardView';
 import { marked } from 'marked';
 import { exportMarkdownToDocx } from './utils/docxExport';
 import { exportMarkdownToPdf } from './utils/pdfExport';
@@ -380,7 +382,8 @@ Additional custom requirements or context: ${custom || 'Convert this material in
   },
   {
     id: 'presentation',
-    name: 'PowerPoint Presentation (Test)',
+    name: 'PowerPoint Presentation',
+    badge: 'Beta',
     icon: Presentation,
     description: 'Formatted slide decks with bullet points, speaker notes, and .pptx download.',
     systemPrompt: `You are an expert Educational Presentation Designer and Secondary School Pedagogy Specialist.
@@ -478,35 +481,113 @@ ${content}
 
 Additional custom requirements or context: ${custom || 'Generate a rigorous teacher marking scheme with full model solutions, mark allocations, and pupil misconception warnings.'}`;
     }
+  },
+  {
+    id: 'whiteboard_lesson',
+    name: 'Interactive Whiteboard Lesson',
+    badge: 'Beta',
+    icon: Monitor,
+    description: 'Projection-ready lesson structured in stages (Starter, Direct Instruction, Tasks, Plenary) for live whiteboard teaching.',
+    systemPrompt: `You are an exceptional UK teacher and pedagogical coach specializing in live whiteboard delivery, student engagement, and cognitive load management.
+Your task is to generate a projection-ready lesson structured explicitly into 6 sequential teaching stages that can be presented directly on an interactive classroom whiteboard or projector.
+
+CRITICAL SPLIT-SCREEN RULES (PUPILS VS TEACHER VIEW):
+The interactive whiteboard system automatically splits each stage into two views:
+1. PUPIL VIEW (Projector): Pupils see only student tasks, questions, explanations, and criteria.
+2. TEACHER PRESENTER VIEW (Laptop): Teachers privately see all pedagogical coaching, timing prompts, and answers.
+Therefore, ALWAYS strictly prefix any teacher timing advice (e.g. "Set a timer for 3 minutes..."), routines, tips, and model answers with "- **Teacher Guidance**:" or "- **Model Answers**:" / "- **Marking Scheme**:"!
+
+Format the output in clean, highly readable Markdown with explicit stage headers so each stage can be projected individually:
+
+# 📺 [Lesson Title: Subject & Main Topic]
+*Key Stage / Year*: [Target Group] | *Lesson Duration*: [e.g. 50-60 mins] | *Key Focus*: [Core Concept]
+
+---
+
+## Stage 1: 🚀 Starter & Retrieval (Do-Now) (5-8 Mins)
+- **Do-Now Task on Board**: 3-4 quick recall questions (e.g. 1 question on last lesson, 1 on last week, 1 on key prior knowledge).
+- **Teacher Guidance**: Set a timer for 3-5 minutes. Silent recall routine, check for common retrieval misconceptions.
+- **Model Answers**: Complete correct solutions for each retrieval question.
+
+---
+
+## Stage 2: 🎯 Learning Intentions & Success Criteria (3 Mins)
+- **WALT (We Are Learning To)**: Clear, student-friendly lesson purpose.
+- **WILF (What I'm Looking For / Success Criteria)**:
+  - 🥉 Bronze / Developing: *I can identify/recall...*
+  - 🥈 Silver / Secure: *I can explain/apply...*
+  - 🥇 Gold / Master: *I can evaluate/critique/analyze...*
+- **Key Tier 3 Vocabulary**: 3-4 essential terms with concise definitions.
+- **Teacher Guidance**: Set a timer for 2-3 minutes. Reading aloud routine, cold-call check on vocabulary.
+
+---
+
+## Stage 3: 💡 Direct Instruction & Teacher Modeling ("I Do") (12-15 Mins)
+- **Core Explanation**: Clear, bite-sized breakdown of the central concept designed to be read easily from the back of the room.
+- **Worked Example / Teacher Modeling**: Step-by-step demonstration of the method or concept.
+- **Teacher Guidance**: Explicitly call out 1 major pupil misconception, pacing advice, and checks for attention.
+
+---
+
+## Stage 4: 🤝 Guided Practice & Check for Understanding ("We Do") (8-10 Mins)
+- **Guided Practice Question**: Think-Pair-Share prompt or mini-whiteboard question for students.
+- **Teacher Guidance**: Set a timer for 3-4 minutes. Cold-call question prompts for the teacher to gauge class readiness before independent work.
+- **Model Answers**: Clear expected response and justification.
+
+---
+
+## Stage 5: ✍️ Independent Student Activity ("You Do") (18-20 Mins)
+- **Student Task Instructions**: Crystal-clear, step-by-step instructions for books or handouts.
+- **Differentiated Pathways**:
+  - *Scaffolded Support*: Sentence starters or hint clues for students needing literacy/confidence scaffolding.
+  - *Stretch / Fast-Finisher Challenge*: An open-ended analytical or application question for early finishers.
+- **Teacher Guidance**: Set a timer for 15-20 minutes. Focused circulation tips, target students to support.
+- **Marking Scheme & Answers**: Expected criteria, model answers, and mark allocations.
+
+---
+
+## Stage 6: 🏁 Plenary, Exit Ticket & Reflection (5 Mins)
+- **Exit Ticket Question**: 1 diagnostic multiple-choice or short question every student must answer before leaving.
+- **Self-Assessment Checkpoint**: Thumbs up/middle/down or 1-3 confidence rating against the WILF criteria.
+- **Teacher Guidance**: Set a timer for 3-4 minutes. Exit ticket answers, dismissal routine, and concluding takeaway linking to next lesson.
+
+Ensure the language is crisp, professional, motivating, and suitable for direct classroom projection.`,
+    userPrompt: (content, custom, isPromptOnly = false, duration = '60') => {
+      const lessonTime = duration || '60';
+      if (isPromptOnly) {
+        return `Generate a complete, projection-ready Interactive Whiteboard Lesson for this topic:
+
+[TOPIC / LESSON FOCUS]
+${content}
+
+[ESTIMATED DURATION]
+Approximately ${lessonTime} minutes.
+
+[SPECIFIC CLASSROOM / PEDAGOGICAL DIRECTIVES]
+${custom || 'Design a high-impact, stage-by-stage lesson (Starter, WALT/WILF, Direct Instruction, Guided Practice, Independent Tasks, Plenary) optimized for interactive whiteboard projection.'}`;
+      }
+      return `Generate a complete, projection-ready Interactive Whiteboard Lesson based on the provided material:
+
+[ESTIMATED DURATION]
+Approximately ${lessonTime} minutes.
+
+--- SOURCE MATERIAL START ---
+${content}
+--- SOURCE MATERIAL END ---
+
+Additional custom requirements or context: ${custom || 'Design a high-impact, stage-by-stage lesson (Starter, WALT/WILF, Direct Instruction, Guided Practice, Independent Tasks, Plenary) optimized for interactive whiteboard projection.'}`;
+    }
   }
 ];
 
 const GEMINI_MODELS = [
-  {
-    id: 'gemini-3.8-flash-lite',
-    name: 'Gemini 3.8 Flash-Lite',
-    tier: 'free',
-    badge: 'Latest Free Tier (Fastest & Default)',
-    speed: 'Instant',
-    description: 'Latest lightweight model. Ultra-low latency, generous free quota, and ideal for instant worksheets, glossaries, and lesson planning.',
-    recommended: true
-  },
-  {
-    id: 'gemini-3.8-flash',
-    name: 'Gemini 3.8 Flash',
-    tier: 'free',
-    badge: 'Latest Free Tier (Flagship)',
-    speed: 'Ultra Fast',
-    description: 'Current flagship Flash workhorse. Exceptional pedagogical reasoning, multimodal depth, and high free tier limits.',
-    recommended: true
-  },
   {
     id: 'gemini-3.5-flash-lite',
     name: 'Gemini 3.5 Flash-Lite',
     tier: 'free',
     badge: 'Free Tier (Fast & Stable)',
     speed: 'Instant',
-    description: 'Fast lightweight model optimized for quick classroom summaries and rapid generation.',
+    description: 'Fast lightweight model optimized for quick classroom summaries, lesson plans, and rapid generation (1,500 req/day free).',
     recommended: true
   },
   {
@@ -515,7 +596,16 @@ const GEMINI_MODELS = [
     tier: 'free',
     badge: 'Free Tier (Stable)',
     speed: 'Ultra Fast',
-    description: 'High-speed Flash model with proven pedagogical reasoning and extensive free quota.'
+    description: 'High-speed Flash model with proven pedagogical reasoning and extensive free quota.',
+    recommended: true
+  },
+  {
+    id: 'gemini-3.8-flash',
+    name: 'Gemini 3.8 Flash',
+    tier: 'free',
+    badge: 'Free Tier (Gemini 3.8 Flagship)',
+    speed: 'Fast',
+    description: 'Advanced Flash workhorse. Exceptional pedagogical reasoning and multimodal depth.'
   },
   {
     id: 'gemini-2.5-flash-lite',
@@ -531,7 +621,7 @@ const GEMINI_MODELS = [
     tier: 'paid',
     badge: 'Flagship Reasoning (Gemini 4 Argon)',
     speed: 'Deep Reasoning',
-    description: 'Google’s next-gen flagship reasoning model designed for complex multi-step curriculum planning, long-horizon scheme design, and deep subject mastery.'
+    description: 'Google’s next-gen flagship reasoning model designed for complex multi-step curriculum planning, long-horizon scheme design, and deep subject mastery (requires Google Cloud billing).'
   },
   {
     id: 'gemini-3.8-pro',
@@ -624,11 +714,11 @@ const SECONDARY_YEAR_LEVELS = [
 export default function App() {
   // App state
   const [provider, setProvider] = useState(() => localStorage.getItem('ai_provider') || 'gemini');
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('ai_apikey') || '');
+  const [apiKey, setApiKey] = useState(() => sanitizeApiKey(localStorage.getItem('ai_apikey') || ''));
   const [model, setModel] = useState(() => {
     const saved = localStorage.getItem('ai_model');
-    return (!saved || saved === 'gemini-1.5-flash' || saved === 'gemini-2.0-flash' || saved === 'gemini-2.5-flash')
-      ? 'gemini-3.8-flash-lite'
+    return (!saved || saved === 'gemini-1.5-flash' || saved === 'gemini-2.0-flash' || saved === 'gemini-2.5-flash' || saved === 'gemini-3.8-flash-lite')
+      ? 'gemini-3.5-flash-lite'
       : saved;
   });
   const [customModel, setCustomModel] = useState(() => localStorage.getItem('ai_custom_model') || '');
@@ -639,7 +729,7 @@ export default function App() {
   const [showOpenAiGuide, setShowOpenAiGuide] = useState(false);
   const [showClaudeGuide, setShowClaudeGuide] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState({ checking: false, checked: false, available: false, latestVersion: '2.5.4', releaseUrl: '', downloadUrl: '', error: null, notes: '' });
+  const [updateStatus, setUpdateStatus] = useState({ checking: false, checked: false, available: false, latestVersion: '2.5.5', releaseUrl: '', downloadUrl: '', error: null, notes: '' });
   const [githubRepoInput, setGithubRepoInput] = useState(() => {
     const saved = localStorage.getItem('app_update_repo');
     if (!saved || saved.toLowerCase().includes('jamierussell') || saved.toLowerCase().includes('teachersummary')) {
@@ -649,7 +739,7 @@ export default function App() {
   });
 
   // Current app version constant
-  const CURRENT_APP_VERSION = '2.5.4';
+  const CURRENT_APP_VERSION = '2.5.5';
 
   // Education Stage State ('secondary' | 'primary')
   const [educationStage, setEducationStage] = useState(() => localStorage.getItem('ai_education_stage') || 'secondary');
@@ -713,6 +803,7 @@ export default function App() {
   const [outputTab, setOutputTab] = useState('render'); // 'render', 'raw', 'table'
   const [copied, setCopied] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [showWhiteboardView, setShowWhiteboardView] = useState(false);
 
   // Available Models: live detected list if present, otherwise vetted fallback presets
   const availableGeminiList = (detectedGeminiModels && detectedGeminiModels.length > 0)
@@ -901,7 +992,7 @@ export default function App() {
     if (nextProvider === 'gemini') {
       const topModel = (detectedGeminiModels && detectedGeminiModels.length > 0)
         ? (detectedGeminiModels.find(m => m.recommended) || detectedGeminiModels[0]).id
-        : 'gemini-3.8-flash-lite';
+        : 'gemini-3.5-flash-lite';
       setModel(topModel);
     } else if (nextProvider === 'claude') {
       const topModel = (detectedClaudeModels && detectedClaudeModels.length > 0)
@@ -989,48 +1080,50 @@ export default function App() {
 
   // Instant auto-detection on clipboard paste
   const handleApiKeyPaste = (e) => {
-    const pastedText = e.clipboardData ? e.clipboardData.getData('text').trim() : '';
-    if (pastedText && pastedText.length >= 15) {
-      setApiKey(pastedText);
+    e.preventDefault();
+    const raw = e.clipboardData ? e.clipboardData.getData('text') : '';
+    const clean = sanitizeApiKey(raw);
+    if (clean && clean.length >= 15) {
+      setApiKey(clean);
 
       // Smart provider detection from API key prefix
       let targetProvider = provider;
-      if (pastedText.startsWith('sk-ant-')) {
+      if (clean.startsWith('sk-ant-')) {
         targetProvider = 'claude';
         setProvider('claude');
-      } else if (pastedText.startsWith('AIza')) {
+      } else if (clean.startsWith('AIza') || clean.startsWith('AQ.')) {
         targetProvider = 'gemini';
         setProvider('gemini');
-      } else if (pastedText.startsWith('sk-') && !pastedText.startsWith('sk-ant-')) {
+      } else if (clean.startsWith('sk-') && !clean.startsWith('sk-ant-')) {
         targetProvider = 'openai';
         setProvider('openai');
       }
 
       if (autoDetectTimeoutRef.current) clearTimeout(autoDetectTimeoutRef.current);
       // Run detection immediately on paste
-      handleDetectModels(pastedText, targetProvider);
+      handleDetectModels(clean, targetProvider);
     }
   };
 
   // Auto-detection on input changes (e.g. context-menu paste or autofill)
   const handleApiKeyChange = (e) => {
-    const val = e.target.value;
-    setApiKey(val);
+    const raw = e.target.value;
+    const clean = sanitizeApiKey(raw);
+    setApiKey(clean);
     setDetectStatus(null);
-    const trimmed = val.trim();
-    if (trimmed.length >= 25 && (trimmed.startsWith('AIza') || trimmed.startsWith('sk-'))) {
+    if (clean.length >= 25 && (clean.startsWith('AIza') || clean.startsWith('AQ.') || clean.startsWith('sk-'))) {
       let targetProvider = provider;
-      if (trimmed.startsWith('sk-ant-')) {
+      if (clean.startsWith('sk-ant-')) {
         targetProvider = 'claude';
         setProvider('claude');
-      } else if (trimmed.startsWith('AIza')) {
+      } else if (clean.startsWith('AIza') || clean.startsWith('AQ.')) {
         targetProvider = 'gemini';
         setProvider('gemini');
       }
 
       if (autoDetectTimeoutRef.current) clearTimeout(autoDetectTimeoutRef.current);
       autoDetectTimeoutRef.current = setTimeout(() => {
-        handleDetectModels(trimmed, targetProvider);
+        handleDetectModels(clean, targetProvider);
       }, 400);
     }
   };
@@ -1784,8 +1877,15 @@ export default function App() {
                         className={`blueprint-card ${isSelected ? 'selected' : ''}`}
                       >
                         <Icon className={`w-5 h-5 shrink-0 mt-0.5 ${isSelected ? (educationStage === 'primary' ? 'text-amber-400' : 'text-violet-400') : 'text-slate-400'}`} />
-                        <div>
-                          <p className="text-xs font-semibold m-0">{t.name}</p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-xs font-semibold m-0">{t.name}</p>
+                            {t.badge && (
+                              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+                                {t.badge}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[10px] text-slate-400 m-0 mt-0.5 line-clamp-2 leading-relaxed">{t.description}</p>
                         </div>
                       </button>
@@ -2096,6 +2196,21 @@ export default function App() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
+                      {/* Launch Whiteboard Presentation Mode */}
+                      <button
+                        onClick={() => setShowWhiteboardView(true)}
+                        className={`px-3 py-1.5 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 hover-scale shadow-md focus:outline-none transition shrink-0 ${
+                          educationStage === 'primary'
+                            ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 shadow-[0_0_15px_rgba(245,158,11,0.35)] border border-amber-300/40'
+                            : 'bg-gradient-to-r from-cyan-500 via-indigo-500 to-violet-600 hover:from-cyan-400 hover:via-indigo-400 hover:to-violet-500 shadow-[0_0_15px_rgba(6,182,212,0.35)] border border-cyan-400/40'
+                        }`}
+                        title="Launch full-screen interactive whiteboard presentation mode"
+                      >
+                        <Monitor className="w-3.5 h-3.5 shrink-0 text-white" />
+                        <span>Whiteboard Mode</span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/20 text-white font-extrabold uppercase tracking-wider">Beta</span>
+                      </button>
+
                       {selectedTemplate !== 'lesson_materials' && (
                         <button
                           onClick={handleChainToMaterials}
@@ -2327,7 +2442,7 @@ export default function App() {
                   <div className="flex gap-2">
                     <input 
                       type={showKey ? "text" : "password"} 
-                      placeholder={provider === 'gemini' ? "Paste Gemini API Key (AIzaSy...)" : provider === 'claude' ? "Paste Claude API Key (sk-ant-...)" : "Paste OpenAI API Key (sk-...)"}
+                      placeholder={provider === 'gemini' ? "Paste Gemini API Key (AQ... or AIzaSy...)" : provider === 'claude' ? "Paste Claude API Key (sk-ant-...)" : "Paste OpenAI API Key (sk-...)"}
                       value={apiKey}
                       onPaste={handleApiKeyPaste}
                       onChange={handleApiKeyChange}
@@ -2448,7 +2563,7 @@ export default function App() {
                             </div>
                             <div className="flex items-start gap-2">
                               <span className="w-4 h-4 rounded-full bg-violet-500/20 text-violet-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">4</span>
-                              <span><strong>Copy Key &amp; Paste Above:</strong> Copy the generated string (<code className="text-violet-300 font-mono">AIzaSy...</code>) and paste it into the box above. JRUSS AI TOOL will <strong>instantly auto-detect</strong> all your models (including Gemini 4 Argon &amp; Flash)!</span>
+                              <span><strong>Copy Key &amp; Paste Above:</strong> Copy the generated string (<code className="text-violet-300 font-mono">AQ...</code> or <code className="text-violet-300 font-mono">AIzaSy...</code>) and paste it into the box above. JRUSS AI TOOL will <strong>instantly auto-detect</strong> all your models (including Gemini 3.5 Flash, 3.8 Flash &amp; Gemini 4 Argon)!</span>
                             </div>
                           </div>
 
@@ -2966,6 +3081,15 @@ export default function App() {
           </StarBorder>
         </div>
       )}
+
+      {/* Interactive Whiteboard Live Classroom Presentation Deck */}
+      <WhiteboardView
+        isOpen={showWhiteboardView}
+        onClose={() => setShowWhiteboardView(false)}
+        content={outputContent}
+        topic={promptTopic || customPrompt || ''}
+        educationStage={educationStage}
+      />
 
       {/* Footer Branding */}
       <footer className="mt-8 text-left text-[11px] text-slate-500 relative z-10">
