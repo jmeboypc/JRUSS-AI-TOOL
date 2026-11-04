@@ -3487,7 +3487,8 @@ export default function App() {
                     placeholder="Search saved lessons by topic or keyword..."
                     value={librarySearch}
                     onChange={(e) => setLibrarySearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
+                    style={{ paddingLeft: '38px' }}
+                    className="w-full pr-3 py-2 bg-slate-900 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
                   />
                 </div>
 
