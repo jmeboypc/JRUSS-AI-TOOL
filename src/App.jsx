@@ -3477,8 +3477,11 @@ export default function App() {
               {/* Controls: Search, Tabs, Backup */}
               <div className="py-3 border-b border-white/10 flex flex-col sm:flex-row gap-2.5 justify-between items-stretch sm:items-center shrink-0">
                 {/* Search Input */}
-                <div className="relative flex-1">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <div className="relative flex-1 flex items-center">
+                  <Search
+                    className="w-4 h-4 text-slate-400 absolute pointer-events-none"
+                    style={{ left: '12px', top: '50%', transform: 'translateY(-50%)' }}
+                  />
                   <input
                     type="text"
                     placeholder="Search saved lessons by topic or keyword..."
