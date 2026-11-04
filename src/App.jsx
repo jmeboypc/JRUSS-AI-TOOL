@@ -2244,8 +2244,8 @@ export default function App() {
                 )}
 
                 {/* Class Profile Quick-Selector */}
-                <div className="p-4 sm:p-5 mb-5 rounded-2xl bg-slate-900/80 border border-white/10 flex flex-col gap-3.5 shadow-sm">
-                  <div className="flex items-center justify-between">
+                <div className="p-4 sm:p-5 mb-5 rounded-2xl bg-slate-900/80 border border-white/10 flex flex-col gap-4 shadow-sm">
+                  <div className="flex items-center justify-between pb-1">
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
                       <Users className="w-4 h-4 text-cyan-400 shrink-0" />
                       <span>Class / Group Profile</span>
@@ -2258,14 +2258,14 @@ export default function App() {
                         setNewProfileDirectives(customPrompt);
                         setShowAddProfileModal(true);
                       }}
-                      className="text-xs text-cyan-300 hover:text-white px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 flex items-center gap-1 font-semibold transition"
+                      className="text-xs text-cyan-300 hover:text-white px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 flex items-center gap-1 font-semibold transition shadow-sm"
                       title="Save custom directives as a reusable profile"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>New Profile</span>
                     </button>
                   </div>
-                  <div className="flex gap-2.5 items-center">
+                  <div className="flex gap-2.5 items-center pt-0.5">
                     <select
                       value={selectedProfileId}
                       onChange={(e) => handleSelectProfile(e.target.value)}
