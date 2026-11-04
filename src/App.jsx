@@ -6,7 +6,8 @@ import {
   Zap, Info, ExternalLink, Lightbulb, Search, CheckCircle2, HelpCircle,
   Clock, GraduationCap, Layers, FileCheck,
   ClipboardList, CloudDownload, ShieldAlert, Presentation,
-  ChevronDown, ChevronUp, Bot, Monitor
+  ChevronDown, ChevronUp, Bot, Monitor,
+  BookMarked, BookmarkPlus, BookmarkCheck, Star, Package, Archive, FolderDown, Users
 } from 'lucide-react';
 import { parseDocument } from './utils/parsers';
 import { 
@@ -799,6 +800,76 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState('');
   const [showWhiteboardView, setShowWhiteboardView] = useState(false);
 
+  // Lesson Library & Generation History State
+  const [savedLessons, setSavedLessons] = useState(() => {
+    try {
+      const raw = localStorage.getItem('jruss_saved_lessons');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [recentHistory, setRecentHistory] = useState(() => {
+    try {
+      const raw = localStorage.getItem('jruss_recent_history');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [showLibraryModal, setShowLibraryModal] = useState(false);
+  const [librarySearch, setLibrarySearch] = useState('');
+  const [libraryTab, setLibraryTab] = useState('saved'); // 'saved', 'recent', 'starred'
+  const [libraryTemplateFilter, setLibraryTemplateFilter] = useState('all');
+  const [saveSuccessNotice, setSaveSuccessNotice] = useState('');
+
+  // Class Profiles State
+  const DEFAULT_CLASS_PROFILES = [
+    {
+      id: 'profile_1',
+      name: 'Year 11 GCSE Higher (Grades 7–9)',
+      stage: 'secondary',
+      directives: 'Targeting Grades 7-9. Include high-level AO2/AO3 challenge, multi-step exam questions, and precise mark scheme terminology.'
+    },
+    {
+      id: 'profile_2',
+      name: 'Year 10 GCSE Foundation (Grades 1–5)',
+      stage: 'secondary',
+      directives: 'Targeting Foundation tier. Clear step-by-step scaffolding, concrete real-world examples, and glossary of key terms.'
+    },
+    {
+      id: 'profile_3',
+      name: 'Year 8 Mixed Ability (Scaffolded)',
+      stage: 'secondary',
+      directives: 'Engaging, fast-paced 5-minute starter recap. Differentiated tasks with Bronze/Silver/Gold challenge tiers and turn-and-talk discussion.'
+    },
+    {
+      id: 'profile_4',
+      name: 'Year 7 SEN / Dyslexia Friendly',
+      stage: 'secondary',
+      directives: 'Dyslexia-friendly layout: clear bullet points, chunked short reading sections, visual cues, and no dense text blocks.'
+    },
+    {
+      id: 'profile_5',
+      name: 'Primary KS2 Working at Expected',
+      stage: 'primary',
+      directives: 'National Curriculum KS2 aligned. Phonics & vocabulary checks, interactive guided practice, clear success criteria, and reflective plenary.'
+    }
+  ];
+
+  const [classProfiles, setClassProfiles] = useState(() => {
+    try {
+      const raw = localStorage.getItem('jruss_class_profiles');
+      return raw ? JSON.parse(raw) : DEFAULT_CLASS_PROFILES;
+    } catch {
+      return DEFAULT_CLASS_PROFILES;
+    }
+  });
+  const [selectedProfileId, setSelectedProfileId] = useState('');
+  const [showAddProfileModal, setShowAddProfileModal] = useState(false);
+  const [newProfileName, setNewProfileName] = useState('');
+  const [newProfileDirectives, setNewProfileDirectives] = useState('');
+
   // Available Models: live detected list if present, otherwise vetted fallback presets
   const availableGeminiList = (detectedGeminiModels && detectedGeminiModels.length > 0)
     ? detectedGeminiModels
@@ -841,6 +912,11 @@ export default function App() {
   };
 
   const isFreeTier = provider === 'gemini' && (customModel.trim() ? !customModel.toLowerCase().includes('pro') : currentGeminiModel.tier === 'free');
+
+  // Check if active output is already bookmarked in library
+  const isCurrentOutputSaved = Boolean(
+    outputContent && savedLessons.some(l => l.content === outputContent || (l.topic === promptTopic && l.template === selectedTemplate && l.content.length === outputContent.length))
+  );
 
   // Handle switching between Primary and Secondary education
   const handleToggleEducationStage = (newStage) => {
@@ -1273,6 +1349,30 @@ export default function App() {
 
       setOutputContent(response);
       setStatusMessage('Completed successfully!');
+
+      // Auto-save generation to Recent History (capped at 10 items)
+      try {
+        const templateObj = TEMPLATES.find(t => t.id === selectedTemplate);
+        const historyItem = {
+          id: 'hist_' + Date.now(),
+          title: promptTopic.trim() || `${templateObj?.name || 'Lesson'} - ${new Date().toLocaleDateString('en-GB')}`,
+          topic: promptTopic.trim(),
+          template: selectedTemplate,
+          templateName: templateObj?.name || 'Lesson Plan',
+          educationStage: educationStage,
+          content: response,
+          timestamp: Date.now(),
+          dateFormatted: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        };
+        setRecentHistory(prev => {
+          const filtered = prev.filter(h => !(h.topic === historyItem.topic && h.template === historyItem.template));
+          const next = [historyItem, ...filtered].slice(0, 10);
+          localStorage.setItem('jruss_recent_history', JSON.stringify(next));
+          return next;
+        });
+      } catch (histErr) {
+        console.error('Failed to auto-save to recent history:', histErr);
+      }
     } catch (err) {
       console.error(err);
       setGenerationError(err.message || 'An unexpected error occurred. Please check your API key and connection.');
@@ -1413,6 +1513,183 @@ export default function App() {
     setStatusMessage('Ready! Blueprint set to Lesson Materials & Handouts. Click Generate to produce student materials.');
   };
 
+  // Lesson Library Handlers
+  const handleSaveToLibrary = (itemToSave = null) => {
+    const content = itemToSave ? itemToSave.content : outputContent;
+    if (!content) return;
+
+    const topic = itemToSave ? itemToSave.topic : promptTopic;
+    const template = itemToSave ? itemToSave.template : selectedTemplate;
+    const stage = itemToSave ? itemToSave.educationStage : educationStage;
+
+    // Check if lesson is already saved
+    const isAlreadySaved = savedLessons.some(l => l.content === content || (l.topic === topic && l.template === template && l.content.length === content.length));
+
+    if (isAlreadySaved) {
+      setSaveSuccessNotice('Already in your Library!');
+      setTimeout(() => setSaveSuccessNotice(''), 2500);
+      return;
+    }
+
+    const templateObj = TEMPLATES.find(t => t.id === template);
+    const newLesson = {
+      id: 'lesson_' + Date.now(),
+      title: topic.trim() || `${templateObj?.name || 'Lesson Plan'} - ${new Date().toLocaleDateString('en-GB')}`,
+      topic: topic.trim(),
+      template: template,
+      templateName: templateObj?.name || 'Lesson Plan',
+      educationStage: stage,
+      content: content,
+      starred: false,
+      timestamp: Date.now(),
+      dateFormatted: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    };
+
+    const next = [newLesson, ...savedLessons];
+    setSavedLessons(next);
+    localStorage.setItem('jruss_saved_lessons', JSON.stringify(next));
+    setSaveSuccessNotice('Saved to your Library! ⭐');
+    setTimeout(() => setSaveSuccessNotice(''), 2500);
+  };
+
+  const handleToggleStarLesson = (id) => {
+    const next = savedLessons.map(l => l.id === id ? { ...l, starred: !l.starred } : l);
+    setSavedLessons(next);
+    localStorage.setItem('jruss_saved_lessons', JSON.stringify(next));
+  };
+
+  const handleDeleteFromLibrary = (id) => {
+    const next = savedLessons.filter(l => l.id !== id);
+    setSavedLessons(next);
+    localStorage.setItem('jruss_saved_lessons', JSON.stringify(next));
+  };
+
+  const handleClearRecentHistory = () => {
+    setRecentHistory([]);
+    localStorage.removeItem('jruss_recent_history');
+  };
+
+  const handleLoadLesson = (item) => {
+    if (!item || !item.content) return;
+    setOutputContent(item.content);
+    if (item.topic) setPromptTopic(item.topic);
+    if (item.template) setSelectedTemplate(item.template);
+    if (item.educationStage) setEducationStage(item.educationStage);
+    setShowLibraryModal(false);
+    setStatusMessage(`Loaded "${item.title || item.topic}" into the workspace.`);
+  };
+
+  const handleExportLibraryJson = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(savedLessons, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `JRUSS_Lesson_Library_Backup_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  const handleImportLibraryJson = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const imported = JSON.parse(event.target.result);
+        if (Array.isArray(imported)) {
+          const existingIds = new Set(savedLessons.map(l => l.id));
+          const toAdd = imported.filter(item => item && item.content && !existingIds.has(item.id));
+          const next = [...toAdd, ...savedLessons];
+          setSavedLessons(next);
+          localStorage.setItem('jruss_saved_lessons', JSON.stringify(next));
+          setSaveSuccessNotice(`Imported ${toAdd.length} lessons into Library!`);
+          setTimeout(() => setSaveSuccessNotice(''), 3000);
+        }
+      } catch {
+        alert('Invalid JSON file format.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  // Download All-in-One Lesson Pack
+  const handleDownloadLessonPack = async () => {
+    if (!outputContent) return;
+    try {
+      setStatusMessage('Preparing All-in-One Lesson Pack...');
+      const sanitizedTopic = (promptTopic || selectedTemplate)
+        .replace(/[^a-zA-Z0-9_\- ]/g, '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .slice(0, 30);
+      const timestamp = Date.now();
+
+      // 1. Download formatted Word document
+      const docxFilename = `JRUSS-${sanitizedTopic || 'Lesson'}-Plan-${timestamp}.docx`;
+      await exportMarkdownToDocx(outputContent, docxFilename, exportOrientation);
+
+      // 2. Download PowerPoint or PDF
+      const hasSlides = selectedTemplate === 'presentation' || selectedTemplate === 'whiteboard' || outputContent.includes('## Slide') || outputContent.includes('### Slide');
+      if (hasSlides) {
+        const pptxFilename = `JRUSS-${sanitizedTopic || 'Lesson'}-Presentation-${timestamp}.pptx`;
+        await exportMarkdownToPptx(outputContent, pptxFilename, promptTopic || 'Lesson Presentation');
+      } else {
+        const pdfFilename = `JRUSS-${sanitizedTopic || 'Lesson'}-Handout-${timestamp}.pdf`;
+        await exportMarkdownToPdf(outputContent, pdfFilename, exportOrientation);
+      }
+
+      setStatusMessage('Lesson Pack exported! Word document and slides/handout downloaded.');
+    } catch (err) {
+      console.error('Lesson Pack export failed:', err);
+      setStatusMessage('Lesson Pack export failed. Please try exporting files individually.');
+    }
+  };
+
+  // Class Profile handlers
+  const handleSelectProfile = (profileId) => {
+    setSelectedProfileId(profileId);
+    if (!profileId) return;
+    const profile = classProfiles.find(p => p.id === profileId);
+    if (profile) {
+      if (profile.stage) setEducationStage(profile.stage);
+      if (profile.directives) {
+        setCustomPrompt(prev => {
+          if (!prev.trim()) return profile.directives;
+          if (prev.includes(profile.directives)) return prev;
+          return `${profile.directives}\n\n${prev}`;
+        });
+      }
+      setStatusMessage(`Applied Class Profile: ${profile.name}`);
+    }
+  };
+
+  const handleSaveCurrentAsProfile = () => {
+    if (!newProfileName.trim()) return;
+    const newProfile = {
+      id: 'profile_' + Date.now(),
+      name: newProfileName.trim(),
+      stage: educationStage,
+      directives: newProfileDirectives.trim() || customPrompt.trim()
+    };
+    const next = [...classProfiles, newProfile];
+    setClassProfiles(next);
+    localStorage.setItem('jruss_class_profiles', JSON.stringify(next));
+    setSelectedProfileId(newProfile.id);
+    setShowAddProfileModal(false);
+    setNewProfileName('');
+    setNewProfileDirectives('');
+    setStatusMessage(`Saved new Class Profile: ${newProfile.name}`);
+  };
+
+  const handleDeleteProfile = (profileId, e) => {
+    e.stopPropagation();
+    const next = classProfiles.filter(p => p.id !== profileId);
+    setClassProfiles(next);
+    localStorage.setItem('jruss_class_profiles', JSON.stringify(next));
+    if (selectedProfileId === profileId) setSelectedProfileId('');
+  };
+
   // Convert markdown table string into editable arrays of rows/columns
   const parseTablesFromMarkdown = (markdown) => {
     if (!markdown) return [];
@@ -1546,6 +1823,21 @@ export default function App() {
                 <span>Secondary</span>
               </button>
             </div>
+
+            {/* Library Button */}
+            <button
+              onClick={() => setShowLibraryModal(true)}
+              className="header-model-pill hover-scale text-slate-300 hover:text-white flex items-center gap-1.5"
+              title="Open Lesson Library and Saved Resources"
+            >
+              <BookMarked className="w-4 h-4 text-amber-400" />
+              <span className="text-xs font-semibold">Library</span>
+              {savedLessons.length > 0 && (
+                <span className="px-1.5 py-0.2 text-[10px] font-bold rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">
+                  {savedLessons.length}
+                </span>
+              )}
+            </button>
 
             {/* Updates Button */}
             <button
@@ -1983,6 +2275,52 @@ export default function App() {
                   </div>
                 )}
 
+                {/* Class Profile Quick-Selector */}
+                <div className="mb-3.5 p-2.5 rounded-xl bg-slate-900/90 border border-white/10 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
+                      <Users className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Class / Group Profile:</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewProfileDirectives(customPrompt);
+                        setShowAddProfileModal(true);
+                      }}
+                      className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 hover:underline font-semibold"
+                      title="Save current directives as a reusable profile"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>New Profile</span>
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedProfileId}
+                      onChange={(e) => handleSelectProfile(e.target.value)}
+                      className="flex-1 bg-slate-950 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-medium"
+                    >
+                      <option value="">Choose Class Profile (Optional)...</option>
+                      {classProfiles.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.stage === 'primary' ? 'Primary' : 'Secondary'})
+                        </option>
+                      ))}
+                    </select>
+                    {selectedProfileId && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteProfile(selectedProfileId, e)}
+                        className="px-2 py-1 bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 rounded-lg text-xs"
+                        title="Delete selected profile"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 {/* Custom directives */}
                 <div className="mb-4">
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
@@ -2238,6 +2576,45 @@ export default function App() {
                           <Presentation className="w-3.5 h-3.5 shrink-0" />
                           <span>Download PPTX</span>
                         </button>
+                      )}
+
+                      {/* Save to Library button */}
+                      <button
+                        onClick={() => handleSaveToLibrary()}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale shadow-sm focus:outline-none transition shrink-0 ${
+                          isCurrentOutputSaved
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                            : 'bg-amber-600 hover:bg-amber-500 text-white'
+                        }`}
+                        title={isCurrentOutputSaved ? "Saved in your Library" : "Save this lesson to your local Library"}
+                      >
+                        {isCurrentOutputSaved ? (
+                          <>
+                            <BookmarkCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            <span>Saved</span>
+                          </>
+                        ) : (
+                          <>
+                            <BookmarkPlus className="w-3.5 h-3.5 shrink-0" />
+                            <span>Save to Library</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Download All-in-One Lesson Pack */}
+                      <button
+                        onClick={handleDownloadLessonPack}
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale shadow-md focus:outline-none transition shrink-0 border border-violet-400/30"
+                        title="Download complete Lesson Pack: Formatted Word Document (.docx) + Presentation Slides (.pptx) or PDF"
+                      >
+                        <Package className="w-3.5 h-3.5 shrink-0 text-violet-200" />
+                        <span>Lesson Pack</span>
+                      </button>
+
+                      {saveSuccessNotice && (
+                        <span className="text-xs text-amber-300 font-semibold px-2 py-1 bg-amber-500/20 rounded-lg border border-amber-500/40 animate-pulse shrink-0">
+                          {saveSuccessNotice}
+                        </span>
                       )}
 
                       <button
@@ -3077,6 +3454,422 @@ export default function App() {
               </div>
             </SpotlightCard>
           </StarBorder>
+        </div>
+      )}
+
+      {/* Lesson Library Modal */}
+      {showLibraryModal && (
+        <div
+          className="fixed inset-0 z-50 bg-[#080b11]/90 backdrop-blur-md overflow-y-auto p-3 sm:p-5 flex justify-center items-start"
+          onClick={() => setShowLibraryModal(false)}
+        >
+          <DotField />
+          <StarBorder className="w-full max-w-4xl relative z-10 my-auto py-2 sm:py-4 max-h-[92vh] flex flex-col" color="#f59e0b">
+            <SpotlightCard
+              className="bg-[#0b0f19]/95 border-0 p-4 sm:p-6 flex flex-col max-h-[90vh] overflow-hidden"
+              contentClassName="flex flex-col h-full max-h-full overflow-hidden"
+              spotlightColor="rgba(245, 158, 11, 0.15)"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-white/10 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 sm:p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400">
+                    <BookMarked className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                      Lesson Library &amp; Saved Materials
+                    </h2>
+                    <p className="text-xs text-slate-400 m-0">
+                      Search, reload, or export your saved teaching resources &amp; generation history
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowLibraryModal(false)}
+                  className="text-xs text-slate-400 hover:text-white px-2.5 py-1.5 rounded-lg hover:bg-white/10 font-semibold transition shrink-0 ml-2"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              {/* Controls: Search, Tabs, Backup */}
+              <div className="py-3 border-b border-white/10 flex flex-col sm:flex-row gap-2.5 justify-between items-stretch sm:items-center shrink-0">
+                {/* Search Input */}
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search saved lessons by topic or keyword..."
+                    value={librarySearch}
+                    onChange={(e) => setLibrarySearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Filter Tabs */}
+                <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-white/5 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setLibraryTab('saved')}
+                    className={`px-3 py-1 rounded-lg transition ${libraryTab === 'saved' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    Saved ({savedLessons.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLibraryTab('starred')}
+                    className={`px-3 py-1 rounded-lg transition flex items-center gap-1 ${libraryTab === 'starred' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    <Star className="w-3 h-3 fill-amber-300 text-amber-300" />
+                    <span>Starred ({savedLessons.filter(l => l.starred).length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLibraryTab('recent')}
+                    className={`px-3 py-1 rounded-lg transition ${libraryTab === 'recent' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    Recent History ({recentHistory.length})
+                  </button>
+                </div>
+
+                {/* Backup / Export Buttons */}
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleExportLibraryJson}
+                    disabled={savedLessons.length === 0}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/10 text-slate-300 hover:text-white text-xs font-medium flex items-center gap-1 disabled:opacity-40"
+                    title="Download JSON backup of all saved lessons"
+                  >
+                    <FolderDown className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Export Backup</span>
+                  </button>
+                  <label
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/10 text-slate-300 hover:text-white text-xs font-medium flex items-center gap-1 cursor-pointer"
+                    title="Restore lessons from JSON backup"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Import</span>
+                    <input
+                      type="file"
+                      accept=".json"
+                      className="hidden"
+                      onChange={handleImportLibraryJson}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* List of Lessons */}
+              <div className="flex-1 overflow-y-auto pr-1 py-3 flex flex-col gap-2.5 overscroll-contain">
+                {(() => {
+                  const activeList = libraryTab === 'recent' 
+                    ? recentHistory 
+                    : libraryTab === 'starred' 
+                    ? savedLessons.filter(l => l.starred) 
+                    : savedLessons;
+
+                  const searchFiltered = activeList.filter(item => {
+                    if (!librarySearch.trim()) return true;
+                    const q = librarySearch.toLowerCase();
+                    return (
+                      (item.title && item.title.toLowerCase().includes(q)) ||
+                      (item.topic && item.topic.toLowerCase().includes(q)) ||
+                      (item.content && item.content.toLowerCase().includes(q)) ||
+                      (item.templateName && item.templateName.toLowerCase().includes(q))
+                    );
+                  });
+
+                  if (searchFiltered.length === 0) {
+                    return (
+                      <div className="p-8 text-center flex flex-col items-center justify-center gap-3 bg-slate-900/40 rounded-2xl border border-white/5 my-auto">
+                        <BookMarked className="w-10 h-10 text-slate-600" />
+                        <div className="text-sm font-semibold text-slate-300">
+                          {libraryTab === 'recent'
+                            ? 'No recent history yet'
+                            : libraryTab === 'starred'
+                            ? 'No starred favourites yet'
+                            : 'Your Library is empty'}
+                        </div>
+                        <p className="text-xs text-slate-500 max-w-sm m-0">
+                          {libraryTab === 'recent'
+                            ? 'Generated lessons will automatically be recorded here so you never lose them.'
+                            : 'Click "Save to Library" on any generated lesson to bookmark it for future use!'}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return searchFiltered.map((item) => {
+                    const isSaved = savedLessons.some(l => l.content === item.content || l.id === item.id);
+                    const isWhiteboard = item.template === 'whiteboard';
+                    const hasSlides = item.template === 'presentation' || isWhiteboard || item.content.includes('## Slide') || item.content.includes('### Slide');
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="p-3.5 rounded-xl bg-slate-900/80 hover:bg-slate-900 border border-white/10 hover:border-amber-500/40 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 group"
+                      >
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          {/* Star Button for saved lessons */}
+                          {libraryTab !== 'recent' && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStarLesson(item.id)}
+                              className="pt-0.5 text-slate-500 hover:text-amber-400 transition"
+                              title={item.starred ? "Remove from Starred" : "Mark as Starred"}
+                            >
+                              <Star className={`w-4 h-4 ${item.starred ? 'fill-amber-400 text-amber-400' : ''}`} />
+                            </button>
+                          )}
+
+                          <div className="flex flex-col gap-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-bold text-white truncate max-w-md">
+                                {item.title || item.topic || 'Untitled Lesson'}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                                {item.templateName || (TEMPLATES.find(t => t.id === item.template)?.name || 'Lesson Plan')}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${item.educationStage === 'primary' ? 'bg-amber-500/20 text-amber-300' : 'bg-cyan-500/20 text-cyan-300'}`}>
+                                {item.educationStage === 'primary' ? 'Primary' : 'Secondary'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                              <span>📅 {item.dateFormatted || new Date(item.timestamp).toLocaleDateString('en-GB')}</span>
+                              {item.topic && (
+                                <span className="truncate max-w-xs text-slate-500">
+                                  Focus: {item.topic}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center flex-wrap">
+                          {/* Load / Open in App */}
+                          <button
+                            type="button"
+                            onClick={() => handleLoadLesson(item)}
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold hover-scale transition shadow-sm"
+                            title="Load this lesson into the workspace"
+                          >
+                            Open Lesson
+                          </button>
+
+                          {/* Launch Whiteboard directly */}
+                          {isWhiteboard && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleLoadLesson(item);
+                                setShowWhiteboardView(true);
+                              }}
+                              className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold hover-scale transition shadow-sm flex items-center gap-1"
+                              title="Launch interactive whiteboard projector"
+                            >
+                              <Monitor className="w-3.5 h-3.5" />
+                              <span>Launch Board</span>
+                            </button>
+                          )}
+
+                          {/* Quick DocX Export */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const sanitized = (item.topic || 'Lesson').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
+                              exportMarkdownToDocx(item.content, `JRUSS-${sanitized}-${Date.now()}.docx`, exportOrientation);
+                            }}
+                            className="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium border border-white/10"
+                            title="Export Word Document (.docx)"
+                          >
+                            DocX
+                          </button>
+
+                          {/* Quick PDF Export */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const sanitized = (item.topic || 'Lesson').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
+                              exportMarkdownToPdf(item.content, `JRUSS-${sanitized}-${Date.now()}.pdf`, exportOrientation);
+                            }}
+                            className="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium border border-white/10"
+                            title="Export PDF Document (.pdf)"
+                          >
+                            PDF
+                          </button>
+
+                          {/* Quick PPTX Export if slides present */}
+                          {hasSlides && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const sanitized = (item.topic || 'Lesson').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
+                                exportMarkdownToPptx(item.content, `JRUSS-${sanitized}-${Date.now()}.pptx`, item.topic || 'Lesson Presentation');
+                              }}
+                              className="px-2 py-1.5 rounded-lg bg-orange-700/80 hover:bg-orange-600 text-white text-xs font-medium"
+                              title="Export PowerPoint Deck (.pptx)"
+                            >
+                              PPTX
+                            </button>
+                          )}
+
+                          {/* If from recent history and not saved yet, give save button */}
+                          {libraryTab === 'recent' && !isSaved && (
+                            <button
+                              type="button"
+                              onClick={() => handleSaveToLibrary(item)}
+                              className="px-2 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium flex items-center gap-1"
+                              title="Save this recent item permanently to library"
+                            >
+                              <BookmarkPlus className="w-3.5 h-3.5" />
+                              <span>Save</span>
+                            </button>
+                          )}
+
+                          {/* Delete */}
+                          {libraryTab !== 'recent' && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteFromLibrary(item.id)}
+                              className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
+                              title="Delete from Library"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* Footer */}
+              <div className="pt-3 sm:pt-4 border-t border-white/10 flex justify-between items-center shrink-0 bg-[#0b0f19]/95">
+                <span className="text-[11px] text-slate-500">
+                  {libraryTab === 'recent'
+                    ? `${recentHistory.length} recently generated lessons cached`
+                    : `${savedLessons.length} permanent lessons stored in your offline browser library`}
+                </span>
+                <div className="flex gap-2">
+                  {libraryTab === 'recent' && recentHistory.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearRecentHistory}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-red-300 hover:bg-red-500/10 transition"
+                    >
+                      Clear History
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowLibraryModal(false)}
+                    className="btn-mode-tab btn-mode-active-doc hover-scale shadow-lg text-xs"
+                    style={{ maxWidth: '140px' }}
+                  >
+                    Close Library
+                  </button>
+                </div>
+              </div>
+            </SpotlightCard>
+          </StarBorder>
+        </div>
+      )}
+
+      {/* Add Class Profile Modal */}
+      {showAddProfileModal && (
+        <div
+          className="fixed inset-0 z-50 bg-[#080b11]/90 backdrop-blur-md overflow-y-auto p-4 flex justify-center items-center"
+          onClick={() => setShowAddProfileModal(false)}
+        >
+          <div
+            className="bg-slate-900 border border-white/15 rounded-2xl w-full max-w-md p-5 flex flex-col gap-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-cyan-400" />
+                <h3 className="text-sm font-bold text-white m-0">Save New Class Profile</h3>
+              </div>
+              <button
+                onClick={() => setShowAddProfileModal(false)}
+                className="text-xs text-slate-400 hover:text-white font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Profile Name (e.g. Year 10 Set 1 Triple Science)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Year 9 Top Set English"
+                  value={newProfileName}
+                  onChange={(e) => setNewProfileName(e.target.value)}
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Education Stage
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEducationStage('secondary')}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border ${educationStage === 'secondary' ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-white/10 text-slate-400'}`}
+                  >
+                    Secondary
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEducationStage('primary')}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border ${educationStage === 'primary' ? 'bg-amber-600 border-amber-400 text-white' : 'bg-slate-950 border-white/10 text-slate-400'}`}
+                  >
+                    Primary
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Default Directives / Focus Requirements
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. Include challenge questions, scaffolding for lower attaining pupils, and exam keywords..."
+                  value={newProfileDirectives}
+                  onChange={(e) => setNewProfileDirectives(e.target.value)}
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setShowAddProfileModal(false)}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveCurrentAsProfile}
+                disabled={!newProfileName.trim()}
+                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold disabled:opacity-40"
+              >
+                Save Profile
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
