@@ -10,10 +10,10 @@ import {
   BookMarked, BookmarkPlus, BookmarkCheck, Star, Package, Archive, FolderDown, Users, Glasses
 } from 'lucide-react';
 import { parseDocument } from './utils/parsers';
-import { 
-  generateContent, 
-  fetchAvailableGeminiModels, 
-  fetchAvailableOpenAIModels, 
+import {
+  generateContent,
+  fetchAvailableGeminiModels,
+  fetchAvailableOpenAIModels,
   fetchAvailableClaudeModels,
   CLAUDE_DEFAULT_PRESETS,
   sanitizeApiKey
@@ -488,7 +488,7 @@ Additional custom requirements or context: ${custom || 'Generate a rigorous teac
     name: 'Interactive Whiteboard Lesson',
     badge: 'Beta',
     icon: Monitor,
-    description: 'Projection-ready lesson structured in stages (Starter, Direct Instruction, Tasks, Plenary) for live whiteboard teaching.',
+    description: 'Projection-ready lesson structured in stages for live whiteboard teaching in-app.',
     systemPrompt: `You are an exceptional UK teacher and pedagogical coach specializing in live whiteboard delivery, student engagement, and cognitive load management.
 Your task is to generate a projection-ready lesson structured explicitly into 6 sequential teaching stages that can be presented directly on an interactive classroom whiteboard or projector.
 
@@ -584,7 +584,7 @@ Additional custom requirements or context: ${custom || 'Design a high-impact, st
     name: 'Visually Impaired Resource',
     badge: 'Arial 48pt+',
     icon: Glasses,
-    description: 'Accessible large-print format (Arial 48pt+), high contrast, linear single-column layout, and rich verbal descriptions of all visual concepts.',
+    description: 'Accessible large-print format (Arial 48pt+), high contrast and rich verbal descriptions of all visual concepts.',
     systemPrompt: `You are an expert Qualified Teacher of Children and Young People with Vision Impairment (QTVI) and Accessible Educational Materials Specialist.
 Your task is to transform the provided source material, lesson plan, or topic into a fully accessible, large-print learning resource tailored specifically for pupils with moderate to severe visual impairments (VI).
 
@@ -777,10 +777,10 @@ export default function App() {
   const [showOpenAiGuide, setShowOpenAiGuide] = useState(false);
   const [showClaudeGuide, setShowClaudeGuide] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState({ checking: false, checked: false, available: false, latestVersion: '2.5.5', releaseUrl: '', downloadUrl: '', error: null, notes: '' });
+  const [updateStatus, setUpdateStatus] = useState({ checking: false, checked: false, available: false, latestVersion: '2.5.6', releaseUrl: '', downloadUrl: '', error: null, notes: '' });
 
   // Current app version & fixed official update repository
-  const CURRENT_APP_VERSION = '2.5.5';
+  const CURRENT_APP_VERSION = '2.5.6';
   const GITHUB_UPDATE_REPO = 'jmeboypc/JRUSS-AI-TOOL';
 
   // Education Stage State ('secondary' | 'primary')
@@ -1120,8 +1120,8 @@ export default function App() {
       message: provToUse === 'gemini'
         ? 'Detecting active Gemini models from Google...'
         : provToUse === 'claude'
-        ? 'Detecting active Claude models from Anthropic...'
-        : 'Detecting active models from OpenAI...'
+          ? 'Detecting active Claude models from Anthropic...'
+          : 'Detecting active models from OpenAI...'
     });
 
     try {
@@ -1818,8 +1818,8 @@ export default function App() {
         <header className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-white/10 pb-6">
           <div className="flex items-center gap-3">
             <div className={`p-3 rounded-2xl border transition-all duration-300 ${educationStage === 'primary'
-                ? 'bg-amber-500/20 border-amber-400/40 shadow-[0_0_18px_rgba(245,158,11,0.25)]'
-                : 'bg-violet-600/20 border-violet-500/30 glow-border-purple'
+              ? 'bg-amber-500/20 border-amber-400/40 shadow-[0_0_18px_rgba(245,158,11,0.25)]'
+              : 'bg-violet-600/20 border-violet-500/30 glow-border-purple'
               }`}>
               <Sparkles className={`w-8 h-8 transition-colors duration-300 ${educationStage === 'primary' ? 'text-amber-400' : 'text-violet-400'}`} />
             </div>
@@ -1841,8 +1841,8 @@ export default function App() {
                     : 'Secondary School Lesson Planner & Document Tailoring Suite'}
                 </span>
                 <span className={`text-[10px] px-1.5 py-0.2 rounded-md font-mono font-semibold border ${educationStage === 'primary'
-                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                    : 'bg-violet-500/20 text-violet-300 border-violet-500/30'
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                  : 'bg-violet-500/20 text-violet-300 border-violet-500/30'
                   }`}>v{CURRENT_APP_VERSION}</span>
               </p>
             </div>
@@ -2025,8 +2025,8 @@ export default function App() {
                 type="button"
                 onClick={() => setInputMode('documents')}
                 className={`btn-mode-tab ${inputMode === 'documents'
-                    ? 'btn-mode-active-doc'
-                    : 'btn-mode-inactive'
+                  ? 'btn-mode-active-doc'
+                  : 'btn-mode-inactive'
                   }`}
               >
                 <Upload className="w-3.5 h-3.5" />
@@ -2040,8 +2040,8 @@ export default function App() {
                 type="button"
                 onClick={() => setInputMode('prompt')}
                 className={`btn-mode-tab ${inputMode === 'prompt'
-                    ? 'btn-mode-active-prompt'
-                    : 'btn-mode-inactive'
+                  ? 'btn-mode-active-prompt'
+                  : 'btn-mode-inactive'
                   }`}
               >
                 <Sparkles className="w-3.5 h-3.5" />
@@ -2065,8 +2065,8 @@ export default function App() {
                   {/* Visual Dropzone area */}
                   <div
                     className={`border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${dragActive
-                        ? 'border-violet-500 bg-violet-500/5'
-                        : 'border-white/10 bg-slate-950/40 hover:border-violet-500/50 hover:bg-slate-950/60'
+                      ? 'border-violet-500 bg-violet-500/5'
+                      : 'border-white/10 bg-slate-950/40 hover:border-violet-500/50 hover:bg-slate-950/60'
                       }`}
                     onDragEnter={handleDrag}
                     onDragOver={handleDrag}
@@ -2241,8 +2241,8 @@ export default function App() {
                 {/* Homework Target Duration Selector (Shown when Homework Assignment is active) */}
                 {selectedTemplate === 'homework' && (
                   <div className={`mb-4 p-3.5 rounded-xl border ${educationStage === 'primary'
-                      ? 'bg-amber-950/20 border-amber-500/25'
-                      : 'bg-purple-950/30 border-purple-500/25'
+                    ? 'bg-amber-950/20 border-amber-500/25'
+                    : 'bg-purple-950/30 border-purple-500/25'
                     }`}>
                     <div className="flex items-center justify-between mb-2">
                       <label className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 m-0 ${educationStage === 'primary' ? 'text-amber-200' : 'text-purple-200'
@@ -2282,8 +2282,8 @@ export default function App() {
                 {/* Presentation Slide Count Selector (Shown when PowerPoint Presentation is active) */}
                 {selectedTemplate === 'presentation' && (
                   <div className={`mb-4 p-3.5 rounded-xl border ${educationStage === 'primary'
-                      ? 'bg-amber-950/20 border-amber-500/25'
-                      : 'bg-indigo-950/30 border-indigo-500/25'
+                    ? 'bg-amber-950/20 border-amber-500/25'
+                    : 'bg-indigo-950/30 border-indigo-500/25'
                     }`}>
                     <div className="flex items-center justify-between mb-2">
                       <label className={`text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 m-0 ${educationStage === 'primary' ? 'text-amber-200' : 'text-indigo-200'
@@ -2323,7 +2323,7 @@ export default function App() {
                 )}
 
                 {/* Class Profile Quick-Selector */}
-                <div className="p-4 sm:p-5 mb-5 rounded-2xl bg-slate-900/80 border border-white/10 flex flex-col gap-4 shadow-sm">
+                <div className="p-4 sm:p-5 mb-8 rounded-2xl bg-slate-900/80 border border-white/10 flex flex-col gap-4 shadow-sm">
                   <div className="flex items-center justify-between pb-1">
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
                       <Users className="w-4 h-4 text-cyan-400 shrink-0" />
@@ -2381,7 +2381,7 @@ export default function App() {
                 </div>
 
                 {/* Custom directives */}
-                <div className="mb-4">
+                <div className="mb-4 pt-1.5">
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
                     <span>{inputMode === 'prompt' ? 'Lesson Focus Directives & Requirements' : `Custom Directives (${educationStage === 'primary' ? 'Primary' : 'Secondary'} Focus)`}</span>
                     <span className="text-[10px] text-slate-500">
@@ -2502,11 +2502,10 @@ export default function App() {
                         <textarea
                           value={outputContent}
                           onChange={(e) => setOutputContent(e.target.value)}
-                          className={`w-full h-[400px] bg-slate-950/40 border border-white/5 rounded-xl p-4 text-slate-300 focus:outline-none focus:border-violet-500 resize-y ${
-                            selectedTemplate === 'vision_impaired' || /vision\s*impaired|large\s*print|arial\s*48/i.test(outputContent)
-                              ? 'text-lg font-sans leading-relaxed'
-                              : 'text-xs font-mono'
-                          }`}
+                          className={`w-full h-[400px] bg-slate-950/40 border border-white/5 rounded-xl p-4 text-slate-300 focus:outline-none focus:border-violet-500 resize-y ${selectedTemplate === 'vision_impaired' || /vision\s*impaired|large\s*print|arial\s*48/i.test(outputContent)
+                            ? 'text-lg font-sans leading-relaxed'
+                            : 'text-xs font-mono'
+                            }`}
                         />
                       )}
 
@@ -2581,8 +2580,8 @@ export default function App() {
                           type="button"
                           onClick={() => setExportOrientation('portrait')}
                           className={`px-2 py-1 rounded font-medium transition ${exportOrientation === 'portrait'
-                              ? (educationStage === 'primary' ? 'bg-amber-600 text-white' : 'bg-violet-600 text-white')
-                              : 'text-slate-400 hover:text-white'
+                            ? (educationStage === 'primary' ? 'bg-amber-600 text-white' : 'bg-violet-600 text-white')
+                            : 'text-slate-400 hover:text-white'
                             }`}
                           title="Page orientation: Portrait (standard document)"
                         >
@@ -2592,8 +2591,8 @@ export default function App() {
                           type="button"
                           onClick={() => setExportOrientation('landscape')}
                           className={`px-2 py-1 rounded font-medium transition ${exportOrientation === 'landscape'
-                              ? (educationStage === 'primary' ? 'bg-amber-600 text-white' : 'bg-violet-600 text-white')
-                              : 'text-slate-400 hover:text-white'
+                            ? (educationStage === 'primary' ? 'bg-amber-600 text-white' : 'bg-violet-600 text-white')
+                            : 'text-slate-400 hover:text-white'
                             }`}
                           title="Page orientation: Landscape (wide tables / handouts)"
                         >
@@ -2606,11 +2605,10 @@ export default function App() {
                       {/* Launch Whiteboard Presentation Mode */}
                       <button
                         onClick={() => setShowWhiteboardView(true)}
-                        className={`px-3 py-1.5 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 hover-scale shadow-md focus:outline-none transition shrink-0 ${
-                          educationStage === 'primary'
-                            ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 shadow-[0_0_15px_rgba(245,158,11,0.35)] border border-amber-300/40'
-                            : 'bg-gradient-to-r from-cyan-500 via-indigo-500 to-violet-600 hover:from-cyan-400 hover:via-indigo-400 hover:to-violet-500 shadow-[0_0_15px_rgba(6,182,212,0.35)] border border-cyan-400/40'
-                        }`}
+                        className={`px-3 py-1.5 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 hover-scale shadow-md focus:outline-none transition shrink-0 ${educationStage === 'primary'
+                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 shadow-[0_0_15px_rgba(245,158,11,0.35)] border border-amber-300/40'
+                          : 'bg-gradient-to-r from-cyan-500 via-indigo-500 to-violet-600 hover:from-cyan-400 hover:via-indigo-400 hover:to-violet-500 shadow-[0_0_15px_rgba(6,182,212,0.35)] border border-cyan-400/40'
+                          }`}
                         title="Launch full-screen interactive whiteboard presentation mode"
                       >
                         <Monitor className="w-3.5 h-3.5 shrink-0 text-white" />
@@ -2634,7 +2632,7 @@ export default function App() {
                         <button
                           onClick={handleChainToVisionImpaired}
                           className="px-2.5 py-1.5 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale shadow-sm focus:outline-none transition shrink-0"
-                          title="Convert this material into an accessible Visually Impaired resource (Arial 48pt+, high contrast, verbal descriptions)"
+                          title="Convert this material into an accessible resource for pupils with vision impairment. (Arial 48pt+, high contrast, verbal descriptions)"
                         >
                           <Glasses className="w-3.5 h-3.5 shrink-0" />
                           <span>Convert to VI (48pt+)</span>
@@ -2656,11 +2654,10 @@ export default function App() {
                       {/* Save to Library button */}
                       <button
                         onClick={() => handleSaveToLibrary()}
-                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale shadow-sm focus:outline-none transition shrink-0 ${
-                          isCurrentOutputSaved
-                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                            : 'bg-amber-600 hover:bg-amber-500 text-white'
-                        }`}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale shadow-sm focus:outline-none transition shrink-0 ${isCurrentOutputSaved
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          : 'bg-amber-600 hover:bg-amber-500 text-white'
+                          }`}
                         title={isCurrentOutputSaved ? "Saved in your Library" : "Save this lesson to your local Library"}
                       >
                         {isCurrentOutputSaved ? (
@@ -2695,8 +2692,8 @@ export default function App() {
                       <button
                         onClick={handleCopyRichText}
                         className={`px-2.5 py-1.5 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale focus:outline-none transition shrink-0 ${educationStage === 'primary'
-                            ? 'bg-amber-600 hover:bg-amber-500'
-                            : 'bg-violet-600 hover:bg-violet-500'
+                          ? 'bg-amber-600 hover:bg-amber-500'
+                          : 'bg-violet-600 hover:bg-violet-500'
                           }`}
                         title="Copy formatted text to clipboard (ready to paste into Microsoft Word or Google Docs)"
                       >
@@ -2887,19 +2884,19 @@ export default function App() {
                         auto-detects on paste
                       </span>
                     </label>
-                    <button 
+                    <button
                       type="button"
-                      onClick={() => setShowKey(!showKey)} 
+                      onClick={() => setShowKey(!showKey)}
                       className="text-xs text-violet-400 hover:text-violet-300 focus:outline-none flex items-center gap-1"
                     >
                       {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       <span className="text-[11px]">{showKey ? 'Hide' : 'Show'}</span>
                     </button>
                   </div>
-                  
+
                   <div className="flex gap-2">
-                    <input 
-                      type={showKey ? "text" : "password"} 
+                    <input
+                      type={showKey ? "text" : "password"}
                       placeholder={provider === 'gemini' ? "Paste Gemini API Key (AQ... or AIzaSy...)" : provider === 'claude' ? "Paste Claude API Key (sk-ant-...)" : "Paste OpenAI API Key (sk-...)"}
                       value={apiKey}
                       onPaste={handleApiKeyPaste}
@@ -2931,13 +2928,12 @@ export default function App() {
 
                   {/* Key Detection Status Banner */}
                   {detectStatus && (
-                    <div className={`mt-2 p-2.5 rounded-xl border text-xs flex items-center gap-2 ${
-                      detectStatus.type === 'success' 
-                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' 
-                        : detectStatus.type === 'info'
+                    <div className={`mt-2 p-2.5 rounded-xl border text-xs flex items-center gap-2 ${detectStatus.type === 'success'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                      : detectStatus.type === 'info'
                         ? 'bg-violet-500/10 border-violet-500/30 text-violet-300'
                         : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-                    }`}>
+                      }`}>
                       {detectStatus.type === 'success' ? (
                         <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
                       ) : detectStatus.type === 'info' ? (
@@ -2951,13 +2947,13 @@ export default function App() {
 
                   <div className="flex items-center justify-between mt-1.5 text-[10px] text-slate-500">
                     <span>
-                      {provider === 'gemini' && detectedGeminiModels 
-                        ? `✓ Live Google API sync active (${detectedGeminiModels.length} models detected)` 
+                      {provider === 'gemini' && detectedGeminiModels
+                        ? `✓ Live Google API sync active (${detectedGeminiModels.length} models detected)`
                         : provider === 'claude' && detectedClaudeModels
-                        ? `✓ Live Anthropic Claude sync active (${detectedClaudeModels.length} models detected)`
-                        : provider === 'openai' && detectedOpenAIModels
-                        ? `✓ Live OpenAI sync active (${detectedOpenAIModels.length} models detected)`
-                        : 'Saved locally in browser storage. Never uploaded to external servers.'}
+                          ? `✓ Live Anthropic Claude sync active (${detectedClaudeModels.length} models detected)`
+                          : provider === 'openai' && detectedOpenAIModels
+                            ? `✓ Live OpenAI sync active (${detectedOpenAIModels.length} models detected)`
+                            : 'Saved locally in browser storage. Never uploaded to external servers.'}
                     </span>
                     <span className="text-[10px] text-slate-400">
                       ⚡ Paste API key to auto-detect
@@ -3216,10 +3212,10 @@ export default function App() {
                                 setCustomModel('');
                               }}
                               className={`settings-model-item ${isSelected
-                                  ? isFree
-                                    ? 'selected-free'
-                                    : 'selected-paid'
-                                  : ''
+                                ? isFree
+                                  ? 'selected-free'
+                                  : 'selected-paid'
+                                : ''
                                 }`}
                             >
                               <div className="flex-1">
@@ -3236,8 +3232,8 @@ export default function App() {
                               </div>
                               <div className="pt-0.5 shrink-0">
                                 <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected
-                                    ? isFree ? 'border-emerald-400 bg-emerald-500 text-black' : 'border-indigo-400 bg-indigo-500 text-white'
-                                    : 'border-white/20 bg-slate-950/60'
+                                  ? isFree ? 'border-emerald-400 bg-emerald-500 text-black' : 'border-indigo-400 bg-indigo-500 text-white'
+                                  : 'border-white/20 bg-slate-950/60'
                                   }`}>
                                   {isSelected && <Check className="w-3 h-3" />}
                                 </div>
@@ -3368,8 +3364,8 @@ export default function App() {
                       provider === 'gemini'
                         ? "e.g., gemini-4-argon or gemini-3.8-pro"
                         : provider === 'openai'
-                        ? "e.g., gpt-4o or o3-mini"
-                        : "e.g., claude-3-7-sonnet-latest or claude-3-5-haiku-latest"
+                          ? "e.g., gpt-4o or o3-mini"
+                          : "e.g., claude-3-7-sonnet-latest or claude-3-5-haiku-latest"
                     }
                     value={customModel}
                     onChange={(e) => setCustomModel(e.target.value)}
@@ -3644,11 +3640,11 @@ export default function App() {
               {/* List of Lessons */}
               <div className="flex-1 overflow-y-auto pr-1 py-3 flex flex-col gap-2.5 overscroll-contain">
                 {(() => {
-                  const activeList = libraryTab === 'recent' 
-                    ? recentHistory 
-                    : libraryTab === 'starred' 
-                    ? savedLessons.filter(l => l.starred) 
-                    : savedLessons;
+                  const activeList = libraryTab === 'recent'
+                    ? recentHistory
+                    : libraryTab === 'starred'
+                      ? savedLessons.filter(l => l.starred)
+                      : savedLessons;
 
                   const searchFiltered = activeList.filter(item => {
                     if (!librarySearch.trim()) return true;
@@ -3669,8 +3665,8 @@ export default function App() {
                           {libraryTab === 'recent'
                             ? 'No recent history yet'
                             : libraryTab === 'starred'
-                            ? 'No starred favourites yet'
-                            : 'Your Library is empty'}
+                              ? 'No starred favourites yet'
+                              : 'Your Library is empty'}
                         </div>
                         <p className="text-xs text-slate-500 max-w-sm m-0">
                           {libraryTab === 'recent'
@@ -3910,11 +3906,10 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setNewProfileStage('primary')}
-                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 ${
-                      newProfileStage === 'primary'
-                        ? 'bg-amber-600 border-amber-400 text-white shadow-md'
-                        : 'bg-slate-950/80 border-white/10 text-slate-400 hover:text-white hover:bg-slate-900'
-                    }`}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 ${newProfileStage === 'primary'
+                      ? 'bg-amber-600 border-amber-400 text-white shadow-md'
+                      : 'bg-slate-950/80 border-white/10 text-slate-400 hover:text-white hover:bg-slate-900'
+                      }`}
                   >
                     <span>🎒</span>
                     <span>Primary</span>
@@ -3922,11 +3917,10 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setNewProfileStage('secondary')}
-                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 ${
-                      newProfileStage === 'secondary'
-                        ? 'bg-indigo-600 border-indigo-400 text-white shadow-md'
-                        : 'bg-slate-950/80 border-white/10 text-slate-400 hover:text-white hover:bg-slate-900'
-                    }`}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 ${newProfileStage === 'secondary'
+                      ? 'bg-indigo-600 border-indigo-400 text-white shadow-md'
+                      : 'bg-slate-950/80 border-white/10 text-slate-400 hover:text-white hover:bg-slate-900'
+                      }`}
                   >
                     <span>🎓</span>
                     <span>Secondary</span>

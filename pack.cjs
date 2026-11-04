@@ -1,6 +1,8 @@
 const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const pkg = require('./package.json');
+const VERSION = pkg.version || '2.5.6';
 
 // Set TLS ignore for electron downloads if needed
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -39,7 +41,7 @@ try {
   const tempDir = path.join(__dirname, '..', 'JRUSS_AI_TOOL_Temp');
   fs.mkdirSync(tempDir, { recursive: true });
 
-  const cmd = `npx electron-packager . "JRUSS AI TOOL" --platform=win32 --arch=x64 --out=release --overwrite --tmpdir="${tempDir}" --app-version="2.5.5" --build-version="2.5.5" --icon=icon.ico --ignore="${ignorePatterns}"`;
+  const cmd = `npx electron-packager . "JRUSS AI TOOL" --platform=win32 --arch=x64 --out=release --overwrite --tmpdir="${tempDir}" --app-version="${VERSION}" --build-version="${VERSION}" --icon=icon.ico --ignore="${ignorePatterns}"`;
   execSync(cmd, { stdio: 'inherit' });
 } catch (e) {
   console.error('Electron packager failed:', e.message);
@@ -49,7 +51,7 @@ try {
 console.log('3. Running WiX compiler to generate MSI installer...');
 try {
   execSync('node build-msi.cjs', { stdio: 'inherit' });
-  console.log('JRUSS AI TOOL v2.5.5 MSI installer compiled successfully in release/ folder!');
+  console.log(`JRUSS AI TOOL v${VERSION} MSI installer compiled successfully in release/ folder!`);
 } catch (e) {
   console.error('MSI compiler failed:', e.message);
   process.exit(1);

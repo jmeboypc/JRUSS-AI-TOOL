@@ -1,14 +1,16 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const pkg = require('./package.json');
 
+const VERSION = pkg.version || '2.5.6';
 const WIX_DIR = 'C:\\Users\\jrussell\\AppData\\Local\\electron-builder\\Cache\\wix\\wix-4.0.0.5512.2-wix-4.0.0.5512.2';
 const APP_DIR = path.join(__dirname, 'release', 'JRUSS AI TOOL-win32-x64');
 const OUT_WXS = path.join(__dirname, 'release', 'installer.wxs');
 const OUT_WIXOBJ = path.join(__dirname, 'release', 'installer.wixobj');
-const OUT_MSI = path.join(__dirname, 'release', 'JRUSS_AI_TOOL_Setup_v2.5.5.msi');
+const OUT_MSI = path.join(__dirname, 'release', `JRUSS_AI_TOOL_Setup_v${VERSION}.msi`);
 
-console.log('1. Generating WiX Installer XML configuration for JRUSS AI TOOL v2.5.5...');
+console.log(`1. Generating WiX Installer XML configuration for JRUSS AI TOOL v${VERSION}...`);
 
 let componentCount = 0;
 const componentsList = [];
@@ -65,8 +67,8 @@ const wixBody = generateWixElements(APP_DIR);
 
 const wxsContent = `<?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Product Id="*" Name="JRUSS AI TOOL" Language="1033" Version="2.5.5" Manufacturer="Jamie Russell" UpgradeCode="d9fbc957-c30f-48d5-b6d1-e6a6a2414777">
-    <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" Description="JRUSS AI TOOL Primary &amp; Secondary School Lesson Planner &amp; Document Tailoring Suite v2.5.5" Comments="Author: Jamie Russell, Website: https://www.jruss.co.uk" Manufacturer="Jamie Russell" />
+  <Product Id="*" Name="JRUSS AI TOOL" Language="1033" Version="${VERSION}" Manufacturer="Jamie Russell" UpgradeCode="d9fbc957-c30f-48d5-b6d1-e6a6a2414777">
+    <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" Description="JRUSS AI TOOL Primary &amp; Secondary School Lesson Planner &amp; Document Tailoring Suite v${VERSION}" Comments="Author: Jamie Russell, Website: https://www.jruss.co.uk" Manufacturer="Jamie Russell" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
