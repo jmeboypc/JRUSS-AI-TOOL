@@ -7,7 +7,7 @@ import {
   Clock, GraduationCap, Layers, FileCheck,
   ClipboardList, CloudDownload, ShieldAlert, Presentation,
   ChevronDown, ChevronUp, Bot, Monitor,
-  BookMarked, BookmarkPlus, BookmarkCheck, Star, Package, Archive, FolderDown, Users
+  BookMarked, BookmarkPlus, BookmarkCheck, Star, Package, Archive, FolderDown, Users, Glasses
 } from 'lucide-react';
 import { parseDocument } from './utils/parsers';
 import { 
@@ -577,6 +577,53 @@ ${content}
 --- SOURCE MATERIAL END ---
 
 Additional custom requirements or context: ${custom || 'Design a high-impact, stage-by-stage lesson (Starter, WALT/WILF, Direct Instruction, Guided Practice, Independent Tasks, Plenary) optimized for interactive whiteboard projection.'}`;
+    }
+  },
+  {
+    id: 'vision_impaired',
+    name: 'Visually Impaired Resource',
+    badge: 'Arial 48pt+',
+    icon: Glasses,
+    description: 'Accessible large-print format (Arial 48pt+), high contrast, linear single-column layout, and rich verbal descriptions of all visual concepts.',
+    systemPrompt: `You are an expert Qualified Teacher of Children and Young People with Vision Impairment (QTVI) and Accessible Educational Materials Specialist.
+Your task is to transform the provided source material, lesson plan, or topic into a fully accessible, large-print learning resource tailored specifically for pupils with moderate to severe visual impairments (VI).
+
+CRITICAL ACCESSIBILITY & QTVI STANDARDS:
+1. TYPOGRAPHY & READABILITY:
+   - Font family must strictly be Arial.
+   - Standard text size is Large Print (48pt+ equivalent standard).
+   - High typographic contrast. Use BOLD for key terms, definitions, and emphasis. NEVER use italics or underlining, which reduce character legibility.
+2. LINEAR SINGLE-COLUMN LAYOUT:
+   - Strictly NO multi-column tables, grids, or floating sidebars. Visual impairment screen magnifiers and peripheral field loss require a linear, top-to-bottom reading path.
+   - Use simple bullet points or numbered lists instead of tables.
+   - Generous line spacing and clear empty lines between paragraphs.
+3. EXPLICIT VERBAL DESCRIPTIONS OF VISUALS & DIAGRAMS (ALT-TEXT PROSE):
+   - Every diagram, graph, chart, timeline, map, or picture implied or present in the source material MUST be transcribed into explicit, descriptive step-by-step verbal prose.
+   - Explain what the visual represents, the spatial layout, and all key data points so a visually impaired pupil receives 100% of the cognitive benefit without needing sight.
+4. UNAMBIGUOUS STRUCTURE & CHUNKED LEARNING:
+   - # [Main Resource Title in Bold Clear Arial]
+   - ## 🔍 Core Explanations & Concepts (chunked into digestible 2-3 sentence paragraphs)
+   - ## 🖼️ Visual Descriptions & Diagrams Transcribed (complete verbal descriptions of all imagery)
+   - ## ✍️ Accessible Student Tasks & Checkpoints (large numbered questions with clear answering instructions)
+   - ## 💡 Model Solutions & Teacher Notes (placed at the bottom for reference).
+Maintain a clear, encouraging, and academically rigorous tone that eliminates all visual barriers to learning.`,
+    userPrompt: (content, custom, isPromptOnly = false) => {
+      if (isPromptOnly) {
+        return `Create an accessible, large-print Visually Impaired Resource (Arial 48pt+ standard, single-column linear layout, complete verbal descriptions of visual concepts) for this topic:
+
+[TOPIC / LESSON FOCUS]
+${content}
+
+[SPECIFIC ACCESSIBILITY / STUDENT DIRECTIVES]
+${custom || 'Convert this topic into an accessible large-print VI resource adhering strictly to Arial font, single-column linear flow, bold emphasis without italics, and full verbal explanations of all diagrams.'}`;
+      }
+      return `Transform the following learning material into an accessible Visually Impaired Resource (Arial 48pt+ standard, single-column linear layout, complete verbal descriptions of all visual concepts and diagrams):
+
+--- SOURCE MATERIAL START ---
+${content}
+--- SOURCE MATERIAL END ---
+
+Additional custom requirements or context: ${custom || 'Convert this material into an accessible large-print VI resource adhering strictly to Arial font, single-column linear flow, bold emphasis without italics, and full verbal explanations of all diagrams.'}`;
     }
   }
 ];
@@ -1414,7 +1461,8 @@ export default function App() {
         .replace(/\s+/g, '_')
         .slice(0, 30);
       const filename = `JRUSS-${sanitizedTopic || selectedTemplate}-${Date.now()}.docx`;
-      await exportMarkdownToDocx(outputContent, filename, exportOrientation);
+      const isVI = selectedTemplate === 'vision_impaired' || /vision\s*impaired|large\s*print|arial\s*48/i.test(outputContent);
+      await exportMarkdownToDocx(outputContent, filename, exportOrientation, { isVisionImpaired: isVI });
     } catch (err) {
       console.error('DocX Export failed:', err);
       // Fallback to rich HTML copy if docx generation encounters an unexpected error
@@ -1431,7 +1479,8 @@ export default function App() {
         .replace(/\s+/g, '_')
         .slice(0, 30);
       const filename = `JRUSS-${sanitizedTopic || selectedTemplate}-${Date.now()}.pdf`;
-      await exportMarkdownToPdf(outputContent, filename, exportOrientation);
+      const isVI = selectedTemplate === 'vision_impaired' || /vision\s*impaired|large\s*print|arial\s*48/i.test(outputContent);
+      await exportMarkdownToPdf(outputContent, filename, exportOrientation, { isVisionImpaired: isVI });
     } catch (err) {
       console.error('PDF Export failed:', err);
       handleCopyRichText();
@@ -1479,6 +1528,34 @@ export default function App() {
 
     // Provide friendly feedback
     setStatusMessage('Ready! Blueprint set to Lesson Materials & Handouts. Click Generate to produce student materials.');
+  };
+
+  // Workflow Chaining: Convert current plan/material into accessible Visually Impaired Resource (Arial 48pt+)
+  const handleChainToVisionImpaired = () => {
+    if (!outputContent) return;
+
+    // Switch template to Visually Impaired Resource
+    setSelectedTemplate('vision_impaired');
+
+    // Extract plausible title if available from first header line
+    const firstHeaderMatch = outputContent.match(/^#+\s+(.+)$/m);
+    if (firstHeaderMatch && firstHeaderMatch[1]) {
+      const extractedTitle = firstHeaderMatch[1].replace(/[:\-–].*$/, '').trim();
+      if (!promptTopic.trim() && extractedTitle) {
+        setPromptTopic(extractedTitle);
+      }
+    }
+
+    // Set custom prompt guidance to chain into accessible VI format
+    setCustomPrompt(prev => {
+      const baseDirective = `Convert all concepts and tasks into an accessible Visually Impaired (VI) Resource using strict Arial font, large print (48pt+ standard), high contrast, linear single-column layout, and rich descriptive verbal alt-text explanations of all visuals and diagrams.`;
+      if (!prev.trim()) return baseDirective;
+      if (prev.includes(baseDirective)) return prev;
+      return `${prev}\n\n- ${baseDirective}`;
+    });
+
+    // Provide friendly feedback
+    setStatusMessage('Ready! Blueprint set to Visually Impaired Resource (Arial 48pt+). Click Generate to produce accessible resource.');
   };
 
   // Lesson Library Handlers
@@ -1593,9 +1670,11 @@ export default function App() {
         .slice(0, 30);
       const timestamp = Date.now();
 
+      const isVI = selectedTemplate === 'vision_impaired' || /vision\s*impaired|large\s*print|arial\s*48/i.test(outputContent);
+
       // 1. Download formatted Word document
       const docxFilename = `JRUSS-${sanitizedTopic || 'Lesson'}-Plan-${timestamp}.docx`;
-      await exportMarkdownToDocx(outputContent, docxFilename, exportOrientation);
+      await exportMarkdownToDocx(outputContent, docxFilename, exportOrientation, { isVisionImpaired: isVI });
 
       // 2. Download PowerPoint or PDF
       const hasSlides = selectedTemplate === 'presentation' || selectedTemplate === 'whiteboard' || outputContent.includes('## Slide') || outputContent.includes('### Slide');
@@ -1604,7 +1683,7 @@ export default function App() {
         await exportMarkdownToPptx(outputContent, pptxFilename, promptTopic || 'Lesson Presentation');
       } else {
         const pdfFilename = `JRUSS-${sanitizedTopic || 'Lesson'}-Handout-${timestamp}.pdf`;
-        await exportMarkdownToPdf(outputContent, pdfFilename, exportOrientation);
+        await exportMarkdownToPdf(outputContent, pdfFilename, exportOrientation, { isVisionImpaired: isVI });
       }
 
       setStatusMessage('Lesson Pack exported! Word document and slides/handout downloaded.');
@@ -2414,7 +2493,7 @@ export default function App() {
                     <>
                       {outputTab === 'render' && (
                         <div
-                          className="markdown-body"
+                          className={`markdown-body ${selectedTemplate === 'vision_impaired' || /vision\s*impaired|large\s*print|arial\s*48/i.test(outputContent) ? 'vi-accessible-doc' : ''}`}
                           dangerouslySetInnerHTML={{ __html: marked.parse(outputContent) }}
                         />
                       )}
@@ -2423,7 +2502,11 @@ export default function App() {
                         <textarea
                           value={outputContent}
                           onChange={(e) => setOutputContent(e.target.value)}
-                          className="w-full h-[400px] bg-slate-950/40 border border-white/5 rounded-xl p-4 text-xs font-mono text-slate-300 focus:outline-none focus:border-violet-500 resize-y"
+                          className={`w-full h-[400px] bg-slate-950/40 border border-white/5 rounded-xl p-4 text-slate-300 focus:outline-none focus:border-violet-500 resize-y ${
+                            selectedTemplate === 'vision_impaired' || /vision\s*impaired|large\s*print|arial\s*48/i.test(outputContent)
+                              ? 'text-lg font-sans leading-relaxed'
+                              : 'text-xs font-mono'
+                          }`}
                         />
                       )}
 
@@ -2543,6 +2626,18 @@ export default function App() {
                         >
                           <Layers className="w-3.5 h-3.5 shrink-0" />
                           <span>Student Materials</span>
+                        </button>
+                      )}
+
+                      {/* Convert to Visually Impaired Resource (Arial 48pt+) */}
+                      {selectedTemplate !== 'vision_impaired' && (
+                        <button
+                          onClick={handleChainToVisionImpaired}
+                          className="px-2.5 py-1.5 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 hover-scale shadow-sm focus:outline-none transition shrink-0"
+                          title="Convert this material into an accessible Visually Impaired resource (Arial 48pt+, high contrast, verbal descriptions)"
+                        >
+                          <Glasses className="w-3.5 h-3.5 shrink-0" />
+                          <span>Convert to VI (48pt+)</span>
                         </button>
                       )}
 
@@ -3665,7 +3760,8 @@ export default function App() {
                             type="button"
                             onClick={() => {
                               const sanitized = (item.topic || 'Lesson').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
-                              exportMarkdownToDocx(item.content, `JRUSS-${sanitized}-${Date.now()}.docx`, exportOrientation);
+                              const isVI = item.template === 'vision_impaired' || /vision\s*impaired|large\s*print|arial\s*48/i.test(item.content);
+                              exportMarkdownToDocx(item.content, `JRUSS-${sanitized}-${Date.now()}.docx`, exportOrientation, { isVisionImpaired: isVI });
                             }}
                             className="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium border border-white/10"
                             title="Export Word Document (.docx)"
@@ -3678,7 +3774,8 @@ export default function App() {
                             type="button"
                             onClick={() => {
                               const sanitized = (item.topic || 'Lesson').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
-                              exportMarkdownToPdf(item.content, `JRUSS-${sanitized}-${Date.now()}.pdf`, exportOrientation);
+                              const isVI = item.template === 'vision_impaired' || /vision\s*impaired|large\s*print|arial\s*48/i.test(item.content);
+                              exportMarkdownToPdf(item.content, `JRUSS-${sanitized}-${Date.now()}.pdf`, exportOrientation, { isVisionImpaired: isVI });
                             }}
                             className="px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium border border-white/10"
                             title="Export PDF Document (.pdf)"

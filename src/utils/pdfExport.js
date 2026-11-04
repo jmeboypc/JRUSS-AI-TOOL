@@ -20,9 +20,15 @@ function stripMarkdownFormatting(text) {
  * @param {string} markdown - The raw markdown content to export
  * @param {string} fileName - Destination filename (.pdf)
  * @param {string} orientation - 'portrait' or 'landscape'
+ * @param {object} options - Optional configuration (e.g. isVisionImpaired)
  */
-export async function exportMarkdownToPdf(markdown, fileName = 'TeacherMaterials.pdf', orientation = 'portrait') {
+export async function exportMarkdownToPdf(markdown, fileName = 'TeacherMaterials.pdf', orientation = 'portrait', options = {}) {
   const isLandscape = orientation === 'landscape';
+  const isVisionImpaired = Boolean(
+    (options && options.isVisionImpaired) ||
+    /vision\s*impaired|large\s*print|arial\s*48/i.test(markdown) ||
+    /vision_impaired/i.test(fileName)
+  );
   
   // A4 dimensions in mm: portrait 210 x 297; landscape 297 x 210
   const doc = new jsPDF({
@@ -33,7 +39,7 @@ export async function exportMarkdownToPdf(markdown, fileName = 'TeacherMaterials
 
   const pageWidth = isLandscape ? 297 : 210;
   const pageHeight = isLandscape ? 210 : 297;
-  const margin = 18;
+  const margin = isVisionImpaired ? 15 : 18;
   const contentWidth = pageWidth - (margin * 2);
   let y = margin;
 
@@ -56,14 +62,14 @@ export async function exportMarkdownToPdf(markdown, fileName = 'TeacherMaterials
     const numCols = Math.max(...tableRows.map(r => r.length));
     if (numCols > 0) {
       const colWidth = contentWidth / numCols;
-      const cellPadding = 2.5;
+      const cellPadding = isVisionImpaired ? 3.5 : 2.5;
 
       checkPageBreak(12);
 
       tableRows.forEach((row, rIdx) => {
         const isHeader = rIdx === 0;
         doc.setFont('helvetica', isHeader ? 'bold' : 'normal');
-        doc.setFontSize(8.5);
+        doc.setFontSize(isVisionImpaired ? 12 : 8.5);
 
         // Calculate max lines needed for any cell in this row
         let maxLines = 1;
@@ -75,7 +81,8 @@ export async function exportMarkdownToPdf(markdown, fileName = 'TeacherMaterials
           if (wrapped.length > maxLines) maxLines = wrapped.length;
         }
 
-        const rowHeight = Math.max(7, maxLines * 4.2 + (cellPadding * 2));
+        const lineHeight = isVisionImpaired ? 6 : 4.2;
+        const rowHeight = Math.max(isVisionImpaired ? 10 : 7, maxLines * lineHeight + (cellPadding * 2));
         checkPageBreak(rowHeight);
 
         // Draw row backgrounds
@@ -91,12 +98,12 @@ export async function exportMarkdownToPdf(markdown, fileName = 'TeacherMaterials
         for (let c = 0; c < numCols; c++) {
           const cellX = margin + (c * colWidth);
           doc.setDrawColor(203, 213, 225); // slate-300
-          doc.setLineWidth(0.2);
+          doc.setLineWidth(isVisionImpaired ? 0.35 : 0.2);
           doc.rect(cellX, y, colWidth, rowHeight, 'S');
 
           doc.setTextColor(isHeader ? 15 : 51, isHeader ? 23 : 65, isHeader ? 42 : 85);
           const wrapped = cellWrappedTexts[c];
-          doc.text(wrapped, cellX + cellPadding, y + cellPadding + 3);
+          doc.text(wrapped, cellX + cellPadding, y + cellPadding + (isVisionImpaired ? 4.5 : 3));
         }
 
         y += rowHeight;
@@ -130,17 +137,17 @@ export async function exportMarkdownToPdf(markdown, fileName = 'TeacherMaterials
 
     // Empty line / paragraph gap
     if (!trimmed) {
-      y += 3;
+      y += isVisionImpaired ? 6 : 3;
       continue;
     }
 
     // Divider
     if (/^(\*\*\*|---|___)$/.test(trimmed)) {
-      checkPageBreak(6);
+      checkPageBreak(isVisionImpaired ? 8 : 6);
       doc.setDrawColor(226, 232, 240);
-      doc.setLineWidth(0.3);
+      doc.setLineWidth(isVisionImpaired ? 0.6 : 0.3);
       doc.line(margin, y, pageWidth - margin, y);
-      y += 5;
+      y += isVisionImpaired ? 8 : 5;
       continue;
     }
 
@@ -151,103 +158,119 @@ export async function exportMarkdownToPdf(markdown, fileName = 'TeacherMaterials
     const h4Match = trimmed.match(/^####+\s+(.+)$/);
 
     if (h1Match) {
-      checkPageBreak(14);
+      const h1Size = isVisionImpaired ? 24 : 16;
+      const h1LineHeight = isVisionImpaired ? 10.5 : 7;
+      checkPageBreak(isVisionImpaired ? 20 : 14);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(16);
+      doc.setFontSize(h1Size);
       doc.setTextColor(30, 41, 59); // slate-800
       const text = stripMarkdownFormatting(h1Match[1]);
       const wrapped = doc.splitTextToSize(text, contentWidth);
       doc.text(wrapped, margin, y);
-      y += (wrapped.length * 7) + 3;
+      y += (wrapped.length * h1LineHeight) + (isVisionImpaired ? 5 : 3);
       continue;
     }
 
     if (h2Match) {
-      checkPageBreak(11);
+      const h2Size = isVisionImpaired ? 20 : 13;
+      const h2LineHeight = isVisionImpaired ? 9 : 6;
+      checkPageBreak(isVisionImpaired ? 16 : 11);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(13);
+      doc.setFontSize(h2Size);
       doc.setTextColor(71, 85, 105); // slate-600
       const text = stripMarkdownFormatting(h2Match[1]);
       const wrapped = doc.splitTextToSize(text, contentWidth);
       doc.text(wrapped, margin, y);
-      y += (wrapped.length * 6) + 2.5;
+      y += (wrapped.length * h2LineHeight) + (isVisionImpaired ? 4 : 2.5);
       continue;
     }
 
     if (h3Match) {
-      checkPageBreak(9);
+      const h3Size = isVisionImpaired ? 18 : 11;
+      const h3LineHeight = isVisionImpaired ? 8 : 5;
+      checkPageBreak(isVisionImpaired ? 13 : 9);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
+      doc.setFontSize(h3Size);
       doc.setTextColor(100, 116, 139); // slate-500
       const text = stripMarkdownFormatting(h3Match[1]);
       const wrapped = doc.splitTextToSize(text, contentWidth);
       doc.text(wrapped, margin, y);
-      y += (wrapped.length * 5) + 2;
+      y += (wrapped.length * h3LineHeight) + (isVisionImpaired ? 3.5 : 2);
       continue;
     }
 
     if (h4Match) {
-      checkPageBreak(8);
+      const h4Size = isVisionImpaired ? 16 : 10;
+      const h4LineHeight = isVisionImpaired ? 7 : 4.5;
+      checkPageBreak(isVisionImpaired ? 11 : 8);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
+      doc.setFontSize(h4Size);
       doc.setTextColor(100, 116, 139);
       const text = stripMarkdownFormatting(h4Match[1]);
       const wrapped = doc.splitTextToSize(text, contentWidth);
       doc.text(wrapped, margin, y);
-      y += (wrapped.length * 4.5) + 2;
+      y += (wrapped.length * h4LineHeight) + (isVisionImpaired ? 3 : 2);
       continue;
     }
 
     // Blockquote
     if (trimmed.startsWith('>')) {
-      checkPageBreak(8);
+      const quoteSize = isVisionImpaired ? 16 : 9.5;
+      const quoteLineHeight = isVisionImpaired ? 7 : 4.5;
+      checkPageBreak(isVisionImpaired ? 12 : 8);
       const quoteText = stripMarkdownFormatting(trimmed.replace(/^>\s*/, ''));
       doc.setFont('helvetica', 'italic');
-      doc.setFontSize(9.5);
+      doc.setFontSize(quoteSize);
       doc.setTextColor(100, 116, 139);
-      const wrapped = doc.splitTextToSize(quoteText, contentWidth - 8);
+      const wrapped = doc.splitTextToSize(quoteText, contentWidth - (isVisionImpaired ? 12 : 8));
       
-      const blockHeight = (wrapped.length * 4.5) + 2;
+      const blockHeight = (wrapped.length * quoteLineHeight) + (isVisionImpaired ? 3.5 : 2);
       checkPageBreak(blockHeight);
       
       // Draw bar on left
       doc.setDrawColor(139, 92, 246); // purple bar
-      doc.setLineWidth(0.8);
+      doc.setLineWidth(isVisionImpaired ? 1.4 : 0.8);
       doc.line(margin, y - 3, margin, y - 3 + blockHeight);
 
-      doc.text(wrapped, margin + 4, y);
-      y += blockHeight + 1.5;
+      doc.text(wrapped, margin + (isVisionImpaired ? 6 : 4), y);
+      y += blockHeight + (isVisionImpaired ? 3 : 1.5);
       continue;
     }
 
     // Bullet or numbered list item
     const bulletMatch = trimmed.match(/^([-*+]|\d+\.)\s+(.+)$/);
     if (bulletMatch) {
-      checkPageBreak(6);
+      const listSize = isVisionImpaired ? 16 : 9.5;
+      const listLineHeight = isVisionImpaired ? 7 : 4.5;
+      checkPageBreak(isVisionImpaired ? 10 : 6);
       const bulletSymbol = bulletMatch[1].endsWith('.') ? bulletMatch[1] : '•';
       const itemText = stripMarkdownFormatting(bulletMatch[2]);
       
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(listSize);
       doc.setTextColor(51, 65, 85);
       
       doc.text(bulletSymbol, margin + 2, y);
       
-      const wrapped = doc.splitTextToSize(itemText, contentWidth - 8);
-      doc.text(wrapped, margin + 7, y);
-      y += (wrapped.length * 4.5) + 1.5;
+      doc.setFont('helvetica', 'normal');
+      const indentOffset = isVisionImpaired ? 11 : 7;
+      const wrapped = doc.splitTextToSize(itemText, contentWidth - indentOffset);
+      doc.text(wrapped, margin + indentOffset, y);
+      y += (wrapped.length * listLineHeight) + (isVisionImpaired ? 3 : 1.5);
       continue;
     }
 
     // Regular paragraph
-    checkPageBreak(6);
+    const bodySize = isVisionImpaired ? 16 : 9.5;
+    const bodyLineHeight = isVisionImpaired ? 7 : 4.5;
+    checkPageBreak(isVisionImpaired ? 10 : 6);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9.5);
+    doc.setFontSize(bodySize);
     doc.setTextColor(51, 65, 85);
     const plainText = stripMarkdownFormatting(trimmed);
     const wrapped = doc.splitTextToSize(plainText, contentWidth);
     doc.text(wrapped, margin, y);
-    y += (wrapped.length * 4.5) + 2;
+    y += (wrapped.length * bodyLineHeight) + (isVisionImpaired ? 3.5 : 2);
   }
 
   if (inTable) flushTable();
@@ -257,7 +280,7 @@ export async function exportMarkdownToPdf(markdown, fileName = 'TeacherMaterials
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(isVisionImpaired ? 11 : 8);
     doc.setTextColor(148, 163, 184); // slate-400
     doc.text(
       `JRUSS Teaching Materials | Page ${p} of ${totalPages}`,

@@ -136,7 +136,7 @@ function formatInlineRuns(text, baseStyle = {}) {
  * syntax into Word structures (headings, tables, lists, quotes, dividers) without leaving
  * any markdown symbols behind.
  */
-function markdownToWordXml(markdown) {
+function markdownToWordXml(markdown, isVisionImpaired = false) {
   let cleaned = (markdown || '').trim();
   // Strip outer markdown fences if the whole response is enclosed in ```markdown ... ```
   cleaned = cleaned.replace(/^```(?:markdown|md)?\s*\r?\n([\s\S]*?)\r?\n```\s*$/i, '$1');
@@ -173,17 +173,17 @@ function markdownToWordXml(markdown) {
           <w:tcPr>
             ${bg}
             <w:tcMar>
-              <w:top w:w="120" w:type="dxa"/>
-              <w:bottom w:w="120" w:type="dxa"/>
-              <w:left w:w="160" w:type="dxa"/>
-              <w:right w:w="160" w:type="dxa"/>
+              <w:top w:w="${isVisionImpaired ? '200' : '120'}" w:type="dxa"/>
+              <w:bottom w:w="${isVisionImpaired ? '200' : '120'}" w:type="dxa"/>
+              <w:left w:w="${isVisionImpaired ? '240' : '160'}" w:type="dxa"/>
+              <w:right w:w="${isVisionImpaired ? '240' : '160'}" w:type="dxa"/>
             </w:tcMar>
           </w:tcPr>
           <w:p>
             <w:pPr>
-              <w:spacing w:after="0" w:line="240" w:lineRule="auto"/>
+              <w:spacing w:after="0" w:line="${isVisionImpaired ? '360' : '240'}" w:lineRule="auto"/>
             </w:pPr>
-            ${formatInlineRuns(cell, { bold: isHeader })}
+            ${formatInlineRuns(cell, { bold: isHeader, font: isVisionImpaired ? 'Arial' : undefined, sz: isVisionImpaired ? '72' : undefined })}
           </w:p>
         </w:tc>`;
       });
@@ -219,7 +219,7 @@ function markdownToWordXml(markdown) {
           <w:rPr>
             <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>
             <w:color w:val="334155"/>
-            <w:sz w:val="20"/>
+            <w:sz w:val="${isVisionImpaired ? '48' : '20'}"/>
           </w:rPr>
           <w:t xml:space="preserve">${escapeXml(rawLine)}</w:t>
         </w:r>
@@ -248,7 +248,7 @@ function markdownToWordXml(markdown) {
 
     // Blank line
     if (!trimmed) {
-      elements.push(`<w:p><w:pPr><w:spacing w:after="100"/></w:pPr></w:p>`);
+      elements.push(`<w:p><w:pPr><w:spacing w:after="${isVisionImpaired ? '240' : '100'}"/></w:pPr></w:p>`);
       continue;
     }
 
@@ -260,33 +260,33 @@ function markdownToWordXml(markdown) {
       const titleContent = headingMatch[2].replace(/\s+#+$/, '');
 
       let styleName = 'Heading1';
-      let font = 'Georgia';
-      let sz = '36';
+      let font = isVisionImpaired ? 'Arial' : 'Georgia';
+      let sz = isVisionImpaired ? '112' : '36'; // 56pt vs 18pt
       let color = '1E293B';
-      let before = '240';
-      let after = '120';
+      let before = isVisionImpaired ? '360' : '240';
+      let after = isVisionImpaired ? '200' : '120';
 
       if (level === 2) {
         styleName = 'Heading2';
-        font = 'Georgia';
-        sz = '28';
+        font = isVisionImpaired ? 'Arial' : 'Georgia';
+        sz = isVisionImpaired ? '104' : '28'; // 52pt vs 14pt
         color = '334155';
-        before = '200';
-        after = '80';
+        before = isVisionImpaired ? '320' : '200';
+        after = isVisionImpaired ? '160' : '80';
       } else if (level === 3) {
         styleName = 'Heading3';
-        font = 'Calibri';
-        sz = '24';
+        font = isVisionImpaired ? 'Arial' : 'Calibri';
+        sz = isVisionImpaired ? '96' : '24'; // 48pt vs 12pt
         color = '475569';
-        before = '160';
-        after = '60';
+        before = isVisionImpaired ? '280' : '160';
+        after = isVisionImpaired ? '140' : '60';
       } else if (level >= 4) {
         styleName = `Heading${level}`;
-        font = 'Calibri';
-        sz = '22';
+        font = isVisionImpaired ? 'Arial' : 'Calibri';
+        sz = isVisionImpaired ? '96' : '22'; // 48pt vs 11pt
         color = '64748B';
-        before = '120';
-        after = '40';
+        before = isVisionImpaired ? '240' : '120';
+        after = isVisionImpaired ? '120' : '40';
       }
 
       elements.push(`<w:p>
@@ -304,9 +304,9 @@ function markdownToWordXml(markdown) {
       elements.push(`<w:p>
         <w:pPr>
           <w:pBdr>
-            <w:bottom w:val="single" w:sz="8" w:space="1" w:color="CBD5E1"/>
+            <w:bottom w:val="single" w:sz="${isVisionImpaired ? '16' : '8'}" w:space="1" w:color="CBD5E1"/>
           </w:pBdr>
-          <w:spacing w:before="120" w:after="120"/>
+          <w:spacing w:before="${isVisionImpaired ? '200' : '120'}" w:after="${isVisionImpaired ? '200' : '120'}"/>
         </w:pPr>
       </w:p>`);
       continue;
@@ -321,13 +321,13 @@ function markdownToWordXml(markdown) {
       elements.push(`<w:p>
         <w:pPr>
           <w:pBdr>
-            <w:left w:val="single" w:sz="24" w:space="8" w:color="8B5CF6"/>
+            <w:left w:val="single" w:sz="${isVisionImpaired ? '36' : '24'}" w:space="8" w:color="0284C7"/>
           </w:pBdr>
-          <w:shd w:val="clear" w:color="auto" w:fill="F8FAFC"/>
-          <w:ind w:left="200" w:right="100"/>
-          <w:spacing w:before="80" w:after="80"/>
+          <w:shd w:val="clear" w:color="auto" w:fill="F0F9FF"/>
+          <w:ind w:left="${isVisionImpaired ? '350' : '200'}" w:right="100"/>
+          <w:spacing w:before="${isVisionImpaired ? '160' : '80'}" w:after="${isVisionImpaired ? '160' : '80'}" w:line="${isVisionImpaired ? '480' : '276'}" w:lineRule="auto"/>
         </w:pPr>
-        ${formatInlineRuns(quoteText, { color: '475569' })}
+        ${formatInlineRuns(quoteText, isVisionImpaired ? { font: 'Arial', sz: '96', color: '0F172A' } : { color: '475569' })}
       </w:p>`);
       continue;
     }
@@ -348,14 +348,17 @@ function markdownToWordXml(markdown) {
 
       elements.push(`<w:p>
         <w:pPr>
-          <w:ind w:left="${leftIndent}" w:hanging="200"/>
-          <w:spacing w:after="60"/>
+          <w:ind w:left="${isVisionImpaired ? leftIndent + 150 : leftIndent}" w:hanging="${isVisionImpaired ? '300' : '200'}"/>
+          <w:spacing w:after="${isVisionImpaired ? '160' : '60'}" w:line="${isVisionImpaired ? '480' : '276'}" w:lineRule="auto"/>
         </w:pPr>
         <w:r>
-          <w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol"/></w:rPr>
+          <w:rPr>
+            <w:rFonts w:ascii="${isVisionImpaired ? 'Arial' : 'Symbol'}" w:hAnsi="${isVisionImpaired ? 'Arial' : 'Symbol'}"/>
+            ${isVisionImpaired ? '<w:sz w:val="96"/><w:b/>' : ''}
+          </w:rPr>
           <w:t>• </w:t>
         </w:r>
-        ${formatInlineRuns(itemText)}
+        ${formatInlineRuns(itemText, isVisionImpaired ? { font: 'Arial', sz: '96' } : {})}
       </w:p>`);
       continue;
     }
@@ -369,14 +372,18 @@ function markdownToWordXml(markdown) {
       const itemText = numMatch[3];
       elements.push(`<w:p>
         <w:pPr>
-          <w:ind w:left="${leftIndent}" w:hanging="250"/>
-          <w:spacing w:after="60"/>
+          <w:ind w:left="${isVisionImpaired ? leftIndent + 150 : leftIndent}" w:hanging="${isVisionImpaired ? '350' : '250'}"/>
+          <w:spacing w:after="${isVisionImpaired ? '160' : '60'}" w:line="${isVisionImpaired ? '480' : '276'}" w:lineRule="auto"/>
         </w:pPr>
         <w:r>
-          <w:rPr><w:b/></w:rPr>
+          <w:rPr>
+            <w:rFonts w:ascii="${isVisionImpaired ? 'Arial' : 'Calibri'}" w:hAnsi="${isVisionImpaired ? 'Arial' : 'Calibri'}"/>
+            <w:b/>
+            ${isVisionImpaired ? '<w:sz w:val="96"/>' : ''}
+          </w:rPr>
           <w:t>${num}. </w:t>
         </w:r>
-        ${formatInlineRuns(itemText)}
+        ${formatInlineRuns(itemText, isVisionImpaired ? { font: 'Arial', sz: '96' } : {})}
       </w:p>`);
       continue;
     }
@@ -384,9 +391,9 @@ function markdownToWordXml(markdown) {
     // Standard body paragraph
     elements.push(`<w:p>
       <w:pPr>
-        <w:spacing w:after="120" w:line="276" w:lineRule="auto"/>
+        <w:spacing w:after="${isVisionImpaired ? '280' : '120'}" w:line="${isVisionImpaired ? '480' : '276'}" w:lineRule="auto"/>
       </w:pPr>
-      ${formatInlineRuns(trimmed)}
+      ${formatInlineRuns(trimmed, isVisionImpaired ? { font: 'Arial', sz: '96' } : {})}
     </w:p>`);
   }
 
@@ -402,10 +409,16 @@ function markdownToWordXml(markdown) {
  * @param {string} markdown - The markdown content to convert
  * @param {string} fileName - Destination filename
  * @param {string} orientation - 'portrait' or 'landscape'
+ * @param {object} options - Optional settings (e.g. isVisionImpaired)
  */
-export async function exportMarkdownToDocx(markdown, fileName = 'TeacherMaterials.docx', orientation = 'portrait') {
+export async function exportMarkdownToDocx(markdown, fileName = 'TeacherMaterials.docx', orientation = 'portrait', options = {}) {
   const zip = new JSZip();
   const isLandscape = orientation === 'landscape';
+  const isVisionImpaired = Boolean(
+    (options && options.isVisionImpaired) ||
+    /vision\s*impaired|large\s*print|arial\s*48/i.test(markdown) ||
+    /vision_impaired/i.test(fileName)
+  );
 
   // 1. [Content_Types].xml
   zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -429,14 +442,22 @@ export async function exportMarkdownToDocx(markdown, fileName = 'TeacherMaterial
 </Relationships>`);
 
   // 4. word/styles.xml
+  const bodyFont = isVisionImpaired ? 'Arial' : 'Calibri';
+  const headingFont = isVisionImpaired ? 'Arial' : 'Georgia';
+  const h1Sz = isVisionImpaired ? '112' : '36';
+  const h2Sz = isVisionImpaired ? '104' : '28';
+  const h3Sz = isVisionImpaired ? '96' : '24';
+  const h4Sz = isVisionImpaired ? '96' : '22';
+  const bodySz = isVisionImpaired ? '96' : '22';
+
   zip.file('word/styles.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:docDefaults>
     <w:rPrDefault>
       <w:rPr>
-        <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>
-        <w:sz w:val="22"/>
-        <w:szCs w:val="22"/>
+        <w:rFonts w:ascii="${bodyFont}" w:hAnsi="${bodyFont}" w:cs="${bodyFont}"/>
+        <w:sz w:val="${bodySz}"/>
+        <w:szCs w:val="${bodySz}"/>
         <w:color w:val="0F172A"/>
       </w:rPr>
     </w:rPrDefault>
@@ -444,43 +465,43 @@ export async function exportMarkdownToDocx(markdown, fileName = 'TeacherMaterial
   <w:style w:type="paragraph" w:styleId="Heading1">
     <w:name w:val="heading 1"/>
     <w:rPr>
-      <w:rFonts w:ascii="Georgia" w:hAnsi="Georgia"/>
+      <w:rFonts w:ascii="${headingFont}" w:hAnsi="${headingFont}"/>
       <w:b/>
       <w:color w:val="1E293B"/>
-      <w:sz w:val="36"/>
+      <w:sz w:val="${h1Sz}"/>
     </w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="Heading2">
     <w:name w:val="heading 2"/>
     <w:rPr>
-      <w:rFonts w:ascii="Georgia" w:hAnsi="Georgia"/>
+      <w:rFonts w:ascii="${headingFont}" w:hAnsi="${headingFont}"/>
       <w:b/>
       <w:color w:val="334155"/>
-      <w:sz w:val="28"/>
+      <w:sz w:val="${h2Sz}"/>
     </w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="Heading3">
     <w:name w:val="heading 3"/>
     <w:rPr>
-      <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
+      <w:rFonts w:ascii="${bodyFont}" w:hAnsi="${bodyFont}"/>
       <w:b/>
       <w:color w:val="475569"/>
-      <w:sz w:val="24"/>
+      <w:sz w:val="${h3Sz}"/>
     </w:rPr>
   </w:style>
   <w:style w:type="paragraph" w:styleId="Heading4">
     <w:name w:val="heading 4"/>
     <w:rPr>
-      <w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/>
+      <w:rFonts w:ascii="${bodyFont}" w:hAnsi="${bodyFont}"/>
       <w:b/>
       <w:color w:val="64748B"/>
-      <w:sz w:val="22"/>
+      <w:sz w:val="${h4Sz}"/>
     </w:rPr>
   </w:style>
 </w:styles>`);
 
   // 5. word/document.xml
-  const bodyXml = markdownToWordXml(markdown);
+  const bodyXml = markdownToWordXml(markdown, isVisionImpaired);
   const pageSizeXml = isLandscape
     ? '<w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>'
     : '<w:pgSz w:w="11906" w:h="16838"/>';
