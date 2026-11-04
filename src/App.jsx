@@ -823,51 +823,19 @@ export default function App() {
   const [libraryTemplateFilter, setLibraryTemplateFilter] = useState('all');
   const [saveSuccessNotice, setSaveSuccessNotice] = useState('');
 
-  // Class Profiles State
-  const DEFAULT_CLASS_PROFILES = [
-    {
-      id: 'profile_1',
-      name: 'Year 11 GCSE Higher (Grades 7–9)',
-      stage: 'secondary',
-      directives: 'Targeting Grades 7-9. Include high-level AO2/AO3 challenge, multi-step exam questions, and precise mark scheme terminology.'
-    },
-    {
-      id: 'profile_2',
-      name: 'Year 10 GCSE Foundation (Grades 1–5)',
-      stage: 'secondary',
-      directives: 'Targeting Foundation tier. Clear step-by-step scaffolding, concrete real-world examples, and glossary of key terms.'
-    },
-    {
-      id: 'profile_3',
-      name: 'Year 8 Mixed Ability (Scaffolded)',
-      stage: 'secondary',
-      directives: 'Engaging, fast-paced 5-minute starter recap. Differentiated tasks with Bronze/Silver/Gold challenge tiers and turn-and-talk discussion.'
-    },
-    {
-      id: 'profile_4',
-      name: 'Year 7 SEN / Dyslexia Friendly',
-      stage: 'secondary',
-      directives: 'Dyslexia-friendly layout: clear bullet points, chunked short reading sections, visual cues, and no dense text blocks.'
-    },
-    {
-      id: 'profile_5',
-      name: 'Primary KS2 Working at Expected',
-      stage: 'primary',
-      directives: 'National Curriculum KS2 aligned. Phonics & vocabulary checks, interactive guided practice, clear success criteria, and reflective plenary.'
-    }
-  ];
-
+  // Class Profiles State (optional, starts empty by default)
   const [classProfiles, setClassProfiles] = useState(() => {
     try {
       const raw = localStorage.getItem('jruss_class_profiles');
-      return raw ? JSON.parse(raw) : DEFAULT_CLASS_PROFILES;
+      return raw ? JSON.parse(raw) : [];
     } catch {
-      return DEFAULT_CLASS_PROFILES;
+      return [];
     }
   });
   const [selectedProfileId, setSelectedProfileId] = useState('');
   const [showAddProfileModal, setShowAddProfileModal] = useState(false);
   const [newProfileName, setNewProfileName] = useState('');
+  const [newProfileStage, setNewProfileStage] = useState('secondary');
   const [newProfileDirectives, setNewProfileDirectives] = useState('');
 
   // Available Models: live detected list if present, otherwise vetted fallback presets
@@ -1669,7 +1637,7 @@ export default function App() {
     const newProfile = {
       id: 'profile_' + Date.now(),
       name: newProfileName.trim(),
-      stage: educationStage,
+      stage: newProfileStage || educationStage,
       directives: newProfileDirectives.trim() || customPrompt.trim()
     };
     const next = [...classProfiles, newProfile];
@@ -2276,7 +2244,7 @@ export default function App() {
                 )}
 
                 {/* Class Profile Quick-Selector */}
-                <div className="mb-3.5 p-2.5 rounded-xl bg-slate-900/90 border border-white/10 flex flex-col gap-2">
+                <div className="p-3.5 mb-4 rounded-xl bg-slate-900/70 border border-white/10 flex flex-col gap-2.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
                       <Users className="w-3.5 h-3.5 text-cyan-400" />
@@ -2285,37 +2253,49 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => {
+                        setNewProfileName('');
+                        setNewProfileStage(educationStage);
                         setNewProfileDirectives(customPrompt);
                         setShowAddProfileModal(true);
                       }}
                       className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 hover:underline font-semibold"
-                      title="Save current directives as a reusable profile"
+                      title="Save custom directives as a reusable profile"
                     >
                       <Plus className="w-3 h-3" />
                       <span>New Profile</span>
                     </button>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center">
                     <select
                       value={selectedProfileId}
                       onChange={(e) => handleSelectProfile(e.target.value)}
-                      className="flex-1 bg-slate-950 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-medium"
+                      className="flex-1 bg-slate-950 text-slate-300 border border-white/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-cyan-500 font-medium cursor-pointer"
                     >
-                      <option value="">Choose Class Profile (Optional)...</option>
-                      {classProfiles.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.stage === 'primary' ? 'Primary' : 'Secondary'})
+                      {classProfiles.length === 0 ? (
+                        <option value="" className="bg-slate-900 text-slate-400">
+                          No profiles created yet (Click '+ New Profile' to add one)
                         </option>
-                      ))}
+                      ) : (
+                        <>
+                          <option value="" className="bg-slate-900 text-slate-400">
+                            Choose Class Profile (Optional)...
+                          </option>
+                          {classProfiles.map((p) => (
+                            <option key={p.id} value={p.id} className="bg-slate-900 text-slate-200">
+                              {p.name} ({p.stage === 'primary' ? 'Primary' : 'Secondary'})
+                            </option>
+                          ))}
+                        </>
+                      )}
                     </select>
                     {selectedProfileId && (
                       <button
                         type="button"
                         onClick={(e) => handleDeleteProfile(selectedProfileId, e)}
-                        className="px-2 py-1 bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 rounded-lg text-xs"
+                        className="px-2.5 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 rounded-xl text-xs transition"
                         title="Delete selected profile"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
@@ -3498,13 +3478,13 @@ export default function App() {
               <div className="py-3 border-b border-white/10 flex flex-col sm:flex-row gap-2.5 justify-between items-stretch sm:items-center shrink-0">
                 {/* Search Input */}
                 <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     placeholder="Search saved lessons by topic or keyword..."
                     value={librarySearch}
                     onChange={(e) => setLibrarySearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 bg-slate-900 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                    className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
                   />
                 </div>
 
@@ -3817,23 +3797,33 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                   Education Stage
                 </label>
-                <div className="flex gap-2">
+                <div className="flex gap-2.5">
                   <button
                     type="button"
-                    onClick={() => setEducationStage('secondary')}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border ${educationStage === 'secondary' ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-white/10 text-slate-400'}`}
+                    onClick={() => setNewProfileStage('primary')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 ${
+                      newProfileStage === 'primary'
+                        ? 'bg-amber-600 border-amber-400 text-white shadow-md'
+                        : 'bg-slate-950/80 border-white/10 text-slate-400 hover:text-white hover:bg-slate-900'
+                    }`}
                   >
-                    Secondary
+                    <span>🎒</span>
+                    <span>Primary</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => setEducationStage('primary')}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border ${educationStage === 'primary' ? 'bg-amber-600 border-amber-400 text-white' : 'bg-slate-950 border-white/10 text-slate-400'}`}
+                    onClick={() => setNewProfileStage('secondary')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 ${
+                      newProfileStage === 'secondary'
+                        ? 'bg-indigo-600 border-indigo-400 text-white shadow-md'
+                        : 'bg-slate-950/80 border-white/10 text-slate-400 hover:text-white hover:bg-slate-900'
+                    }`}
                   >
-                    Primary
+                    <span>🎓</span>
+                    <span>Secondary</span>
                   </button>
                 </div>
               </div>
@@ -3852,11 +3842,11 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-white/10">
               <button
                 type="button"
                 onClick={() => setShowAddProfileModal(false)}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white text-xs font-medium"
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition"
               >
                 Cancel
               </button>
@@ -3864,9 +3854,10 @@ export default function App() {
                 type="button"
                 onClick={handleSaveCurrentAsProfile}
                 disabled={!newProfileName.trim()}
-                className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold disabled:opacity-40"
+                className="px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition shadow-md hover-scale disabled:opacity-40 disabled:hover:scale-100 flex items-center gap-1.5"
               >
-                Save Profile
+                <Check className="w-3.5 h-3.5" />
+                <span>Save Profile</span>
               </button>
             </div>
           </div>
