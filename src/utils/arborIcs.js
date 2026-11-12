@@ -440,3 +440,4 @@ export function downloadIcsFile(icsContent, filename = 'Arbor_Timetable.ics') {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
