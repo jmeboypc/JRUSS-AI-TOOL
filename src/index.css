@@ -768,12 +768,24 @@ h1, h2, h3, h4, h5, h6 {
 .max-w-sm { max-width: 24rem; }
 .max-w-lg { max-width: 32rem; }
 
+.min-h-0 { min-height: 0px !important; }
+.min-w-0 { min-width: 0px !important; }
 .min-h-screen { min-height: 100vh; }
 .min-h-\[400px\] { min-height: 400px; }
 .min-h-\[300px\] { min-height: 300px; }
+.max-h-60 { max-height: 15rem !important; }
+.max-h-72 { max-height: 18rem !important; }
+.max-h-80 { max-height: 20rem !important; }
+.max-h-96 { max-height: 24rem !important; }
 .max-h-\[220px\] { max-height: 220px; }
 .max-h-\[500px\] { max-height: 500px; }
-.max-h-\[85vh\] { max-height: 85vh; }
+.max-h-\[85vh\] { max-height: 85vh !important; }
+.max-h-\[88vh\] { max-height: 88vh !important; }
+.max-h-\[90vh\] { max-height: 90vh !important; }
+.max-h-\[92vh\] { max-height: 92vh !important; }
+.h-\[85vh\] { height: 85vh !important; }
+.h-\[90vh\] { height: 90vh !important; }
+.overscroll-contain { overscroll-behavior: contain !important; }
 
 /* Borders & Radii */
 .rounded { border-radius: 0.25rem; }

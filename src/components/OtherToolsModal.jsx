@@ -51,6 +51,7 @@ export default function OtherToolsModal({ isOpen, onClose }) {
   const [showOutlookGuide, setShowOutlookGuide] = useState(false);
   const [previewSearch, setPreviewSearch] = useState('');
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Bell times configuration saved in localStorage
   const [bellTimes, setBellTimes] = useState(() => {
@@ -124,8 +125,7 @@ export default function OtherToolsModal({ isOpen, onClose }) {
     }
   };
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files && e.target.files[0];
+  const processFile = (file) => {
     if (!file) return;
 
     setUploadedFileName(file.name);
@@ -144,7 +144,35 @@ export default function OtherToolsModal({ isOpen, onClose }) {
       runParser(content, detectedYear);
     };
     reader.readAsText(file);
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    processFile(file);
     e.target.value = '';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) {
+      processFile(file);
+    }
   };
 
   const handlePasteChange = (text) => {
@@ -223,17 +251,31 @@ export default function OtherToolsModal({ isOpen, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-fade-in"
+      className="fixed inset-0 z-50 bg-[#080b11]/90 backdrop-blur-md p-3 sm:p-5 flex justify-center items-start animate-fade-in"
+      style={{
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+      }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-4xl h-[90vh] max-h-[90vh] flex flex-col bg-slate-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden my-auto"
+        className="w-full max-w-4xl bg-slate-950 border border-white/10 rounded-2xl shadow-2xl my-auto"
+        style={{
+          height: '88vh',
+          maxHeight: '88vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* ========================================================
             STICKY HEADER (WITH BREADCRUMB / BACK BUTTON)
             ======================================================== */}
-        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-white/10 bg-slate-900/95 shrink-0">
+        <div
+          className="flex items-center justify-between p-4 sm:p-5 border-b border-white/10 bg-slate-900/95"
+          style={{ flexShrink: 0 }}
+        >
           <div className="flex items-center gap-3 min-w-0">
             {activeTool !== 'hub' ? (
               <button
@@ -283,9 +325,17 @@ export default function OtherToolsModal({ isOpen, onClose }) {
         </div>
 
         {/* ========================================================
-            SCROLLABLE BODY (FIXED WITH min-h-0 overflow-y-auto)
+            SCROLLABLE BODY (FAILURE-PROOF WITH INLINE STYLES)
             ======================================================== */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-6 overscroll-contain">
+        <div
+          className="p-4 sm:p-6 space-y-6"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
+          }}
+        >
 
           {/* ========================================================
               VIEW 1: TOOLS HUB CATALOG (GRID OF TOOLS)
@@ -442,7 +492,17 @@ export default function OtherToolsModal({ isOpen, onClose }) {
                 </div>
 
                 {inputTab === 'upload' ? (
-                  <div className="flex flex-col items-center justify-center border-2 border-dashed border-white/15 hover:border-emerald-500/50 rounded-xl p-6 bg-slate-950/50 transition group cursor-pointer text-center relative">
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragEnter={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 transition group cursor-pointer text-center relative ${
+                      isDragging
+                        ? 'border-emerald-400 bg-emerald-950/40 ring-2 ring-emerald-500/50'
+                        : 'border-white/15 hover:border-emerald-500/50 bg-slate-950/50'
+                    }`}
+                  >
                     <input
                       type="file"
                       accept=".csv,.txt"
@@ -454,7 +514,11 @@ export default function OtherToolsModal({ isOpen, onClose }) {
                       <Upload className="w-6 h-6" />
                     </div>
                     <p className="text-xs font-semibold text-white">
-                      {uploadedFileName ? `Selected: ${uploadedFileName}` : 'Click or drag & drop your Arbor Timetable (.csv) file here'}
+                      {isDragging
+                        ? 'Drop your Arbor CSV file now!'
+                        : uploadedFileName
+                          ? `Loaded: ${uploadedFileName}`
+                          : 'Click or drag & drop your Arbor Timetable (.csv) file here'}
                     </p>
                     <p className="text-[11px] text-slate-400 mt-1">
                       Supports exported CSV files (e.g. <span className="font-mono text-emerald-300">Staff Timetable.csv</span>)
@@ -506,23 +570,44 @@ export default function OtherToolsModal({ isOpen, onClose }) {
                       </div>
                     </div>
 
-                    {/* Multiple Staff Selector if CSV contains multiple staff */}
-                    {parsedData.staffList.length > 1 && (
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs font-semibold text-slate-400">Teacher:</span>
-                        <select
-                          value={selectedStaff}
-                          onChange={(e) => setSelectedStaff(e.target.value)}
-                          className="bg-slate-950 text-white text-xs border border-white/10 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 font-medium"
-                        >
-                          {parsedData.staffList.map((st) => (
-                            <option key={st} value={st}>
-                              {st} ({parsedData.eventsByStaff[st]?.length || 0} sessions)
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+                      {/* Multiple Staff Selector if CSV contains multiple staff */}
+                      {parsedData.staffList.length > 1 && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-slate-400">Teacher:</span>
+                          <select
+                            value={selectedStaff}
+                            onChange={(e) => setSelectedStaff(e.target.value)}
+                            className="bg-slate-950 text-white text-xs border border-white/10 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-emerald-500 font-medium"
+                          >
+                            {parsedData.staffList.map((st) => (
+                              <option key={st} value={st}>
+                                {st} ({parsedData.eventsByStaff[st]?.length || 0} sessions)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Quick Download Button in Summary Bar */}
+                      <button
+                        type="button"
+                        onClick={handleDownloadIcs}
+                        className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm hover-scale transition"
+                      >
+                        {downloadSuccess ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Downloaded!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Download .ics</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   {/* 3. Export Options & Settings Grid */}
@@ -673,7 +758,14 @@ export default function OtherToolsModal({ isOpen, onClose }) {
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      <div
+                        style={{
+                          maxHeight: '260px',
+                          overflowY: 'auto',
+                          paddingRight: '4px',
+                        }}
+                        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+                      >
                         {parsedData.allPeriods.map(period => {
                           const timing = bellTimes[period] || { start: '09:00', end: '10:00' };
                           return (
@@ -767,7 +859,13 @@ export default function OtherToolsModal({ isOpen, onClose }) {
                       </div>
                     </div>
 
-                    <div className="max-h-72 overflow-y-auto divide-y divide-white/5">
+                    <div
+                      style={{
+                        maxHeight: '260px',
+                        overflowY: 'auto',
+                      }}
+                      className="divide-y divide-white/5"
+                    >
                       {previewEvents.length === 0 ? (
                         <div className="p-6 text-center text-xs text-slate-500">
                           No matching lessons found.
@@ -924,7 +1022,10 @@ export default function OtherToolsModal({ isOpen, onClose }) {
         {/* ========================================================
             STICKY FOOTER (ALWAYS VISIBLE & ACCESSIBLE)
             ======================================================== */}
-        <div className="p-4 border-t border-white/10 bg-slate-900/95 flex items-center justify-between shrink-0">
+        <div
+          className="p-4 border-t border-white/10 bg-slate-900/95 flex items-center justify-between"
+          style={{ flexShrink: 0 }}
+        >
           <div className="text-[11px] text-slate-500 truncate mr-2">
             {activeTool === 'arbor_timetable'
               ? '💡 Timetable data stays 100% on your device and is never sent to any server.'
