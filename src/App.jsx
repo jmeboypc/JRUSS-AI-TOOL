@@ -7,7 +7,8 @@ import {
   Clock, GraduationCap, Layers, FileCheck,
   ClipboardList, CloudDownload, ShieldAlert, Presentation,
   ChevronDown, ChevronUp, Bot, Monitor,
-  BookMarked, BookmarkPlus, BookmarkCheck, Star, Package, Archive, FolderDown, Users, Glasses
+  BookMarked, BookmarkPlus, BookmarkCheck, Star, Package, FolderDown, Users, Glasses,
+  Calendar
 } from 'lucide-react';
 import { parseDocument } from './utils/parsers';
 import {
@@ -23,6 +24,7 @@ import DecryptedText from './components/DecryptedText';
 import StarBorder from './components/StarBorder';
 import DotField from './components/DotField';
 import WhiteboardView from './components/WhiteboardView';
+import ArborTimetableModal from './components/ArborTimetableModal';
 import { marked } from 'marked';
 import { exportMarkdownToDocx } from './utils/docxExport';
 import { exportMarkdownToPdf } from './utils/pdfExport';
@@ -865,9 +867,9 @@ export default function App() {
     }
   });
   const [showLibraryModal, setShowLibraryModal] = useState(false);
+  const [showArborModal, setShowArborModal] = useState(false);
   const [librarySearch, setLibrarySearch] = useState('');
   const [libraryTab, setLibraryTab] = useState('saved'); // 'saved', 'recent', 'starred'
-  const [libraryTemplateFilter, setLibraryTemplateFilter] = useState('all');
   const [saveSuccessNotice, setSaveSuccessNotice] = useState('');
 
   // Class Profiles State (optional, starts empty by default)
@@ -1884,6 +1886,20 @@ export default function App() {
                   {savedLessons.length}
                 </span>
               )}
+            </button>
+
+            {/* Arbor Timetable Converter Button */}
+            <button
+              type="button"
+              onClick={() => setShowArborModal(true)}
+              className="header-model-pill hover-scale text-slate-300 hover:text-white flex items-center gap-1.5"
+              title="Convert Arbor MIS Timetable into an Outlook (.ics) calendar file"
+            >
+              <Calendar className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs font-semibold">Arbor Timetable</span>
+              <span className="px-1.5 py-0.2 text-[9px] font-bold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono">
+                .ics
+              </span>
             </button>
 
             {/* Updates Button */}
@@ -3971,6 +3987,12 @@ export default function App() {
         content={outputContent}
         topic={promptTopic || customPrompt || ''}
         educationStage={educationStage}
+      />
+
+      {/* Arbor MIS Timetable to Outlook (.ics) Converter Modal */}
+      <ArborTimetableModal
+        isOpen={showArborModal}
+        onClose={() => setShowArborModal(false)}
       />
 
       {/* Footer Branding */}
