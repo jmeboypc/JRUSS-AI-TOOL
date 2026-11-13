@@ -593,7 +593,11 @@ export default function OtherToolsModal({ isOpen, onClose }) {
                       <button
                         type="button"
                         onClick={handleDownloadIcs}
-                        className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm hover-scale transition"
+                        style={{
+                          background: 'linear-gradient(135deg, #10b981, #0d9488)',
+                          whiteSpace: 'nowrap',
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl text-white text-xs font-bold flex items-center gap-1.5 shadow-sm hover-scale transition shrink-0"
                       >
                         {downloadSuccess ? (
                           <>
@@ -802,36 +806,52 @@ export default function OtherToolsModal({ isOpen, onClose }) {
                   )}
 
                   {/* 4. Download Action Banner */}
-                  <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-950/70 via-slate-900 to-teal-950/70 border border-emerald-500/40 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
-                    <div>
+                  <div
+                    className="p-4 sm:p-5 rounded-2xl shadow-lg"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(6, 78, 59, 0.35), rgba(15, 23, 42, 0.92))',
+                      border: '1px solid rgba(16, 185, 129, 0.35)',
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '1rem',
+                    }}
+                  >
+                    <div style={{ minWidth: '220px', flex: '1 1 260px' }}>
                       <h4 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-emerald-400" />
-                        Ready to Generate Outlook Calendar (.ics)
+                        <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>Ready to Generate Outlook Calendar (.ics)</span>
                       </h4>
-                      <p className="text-xs text-slate-300 mt-1">
+                      <p className="text-xs text-slate-300 mt-1 mb-0">
                         Outputs <strong className="text-white">{currentEvents.length} lessons</strong> formatted with UK London timezone, room locations, and calendar alerts.
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
-                      <button
-                        type="button"
-                        onClick={handleDownloadIcs}
-                        className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover-scale transition"
-                      >
-                        {downloadSuccess ? (
-                          <>
-                            <Check className="w-4 h-4" />
-                            <span>Downloaded .ics!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Download className="w-4 h-4" />
-                            <span>Download Outlook Calendar (.ics)</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDownloadIcs}
+                      style={{
+                        background: 'linear-gradient(135deg, #10b981, #0d9488)',
+                        boxShadow: '0 4px 18px rgba(16, 185, 129, 0.3)',
+                        padding: '0.625rem 1.25rem',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                      }}
+                      className="rounded-xl text-white text-xs font-bold flex items-center justify-center gap-2 hover-scale transition"
+                    >
+                      {downloadSuccess ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          <span>Downloaded .ics!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4" />
+                          <span>Download Outlook Calendar (.ics)</span>
+                        </>
+                      )}
+                    </button>
                   </div>
 
                   {/* 5. Live Events Preview Table */}
