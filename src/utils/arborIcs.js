@@ -32,10 +32,18 @@ export const DEFAULT_BELL_TIMES = {
 };
 
 /**
- * Robust CSV parser that handles quotes, escaped quotes, and newlines
+ * Robust CSV / TSV parser that handles quotes, escaped quotes, tabs, and newlines.
+ * Auto-detects tab-separated input (e.g. copy-pasted directly from an Arbor HTML table).
  */
 export function parseCsvRows(csvText) {
   if (!csvText) return [];
+
+  // Detect delimiter from first non-empty line: tab if tabs are present without unquoted commas
+  const firstLine = csvText.split(/\r?\n/).find(l => l.trim().length > 0) || '';
+  const tabCount = (firstLine.match(/\t/g) || []).length;
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  const delimiter = tabCount > 0 && tabCount >= commaCount ? '\t' : ',';
+
   const rows = [];
   let currentRow = [];
   let currentField = '';
@@ -52,7 +60,7 @@ export function parseCsvRows(csvText) {
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (char === ',' && !inQuotes) {
+    } else if (char === delimiter && !inQuotes) {
       currentRow.push(currentField.trim());
       currentField = '';
     } else if ((char === '\r' || char === '\n') && !inQuotes) {
@@ -199,9 +207,13 @@ export function parseArborCsv(csvText, customOptions = {}) {
   }
 
   if (columnMappings.length === 0) {
+    // Fallback: try parsing as a row-per-event table (e.g. from Arbor User Profile > Calendar > Events)
+    const eventListResult = parseArborEventsTable(rows, baseYear);
+    if (eventListResult) return eventListResult;
+
     return {
       success: false,
-      error: 'Could not detect standard Arbor timetable column headers (e.g. "Thursday 12th Nov: Period 1"). Please ensure this is an exported Arbor staff timetable.',
+      error: 'Could not detect standard Arbor timetable headers (e.g. "Thursday 12th Nov: Period 1") or Calendar Events columns (Start / End / Event). Please check your CSV or pasted table.',
       staffList: [],
       eventsByStaff: {},
       allPeriods: []
@@ -284,6 +296,187 @@ export function parseArborCsv(csvText, customOptions = {}) {
 }
 
 /**
+ * Parses common Arbor date/time strings into { isoDate, timeStr, dayName, dayNum, monthName, year }
+ */
+function parseArborDateTime(str, fallbackYear) {
+  if (!str) return null;
+  const clean = str.trim();
+
+  // Extract HH:MM (24h or 12h am/pm) if present
+  let timeStr = '';
+  const timeMatch = clean.match(/\b(\d{1,2}):(\d{2})(?:\s*(am|pm))?\b/i);
+  if (timeMatch) {
+    let hh = parseInt(timeMatch[1], 10);
+    const mm = timeMatch[2];
+    const ampm = timeMatch[3] ? timeMatch[3].toLowerCase() : '';
+    if (ampm === 'pm' && hh < 12) hh += 12;
+    if (ampm === 'am' && hh === 12) hh = 0;
+    timeStr = `${String(hh).padStart(2, '0')}:${mm}`;
+  }
+
+  let year = fallbackYear;
+  let monthNum;
+  let dayNum;
+
+  // 1. ISO: YYYY-MM-DD
+  const isoMatch = clean.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+  // 2. UK slash: DD/MM/YYYY or DD/MM/YY
+  const ukMatch = clean.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/);
+  // 3. Text month: "13 Nov 2026" or "Fri 13th November 2026" or "13 Nov"
+  const textMatch = clean.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})(?:,?\s+(20\d{2}))?\b/i);
+
+  if (isoMatch) {
+    year = parseInt(isoMatch[1], 10);
+    monthNum = parseInt(isoMatch[2], 10) - 1;
+    dayNum = parseInt(isoMatch[3], 10);
+  } else if (ukMatch) {
+    dayNum = parseInt(ukMatch[1], 10);
+    monthNum = parseInt(ukMatch[2], 10) - 1;
+    const yrRaw = parseInt(ukMatch[3], 10);
+    year = yrRaw < 100 ? 2000 + yrRaw : yrRaw;
+  } else if (textMatch) {
+    const mKey = textMatch[2].toLowerCase().slice(0, 3);
+    if (MONTH_MAP[mKey] !== undefined) {
+      dayNum = parseInt(textMatch[1], 10);
+      monthNum = MONTH_MAP[mKey];
+      if (textMatch[3]) year = parseInt(textMatch[3], 10);
+    }
+  }
+
+  if (monthNum === undefined || !dayNum || monthNum < 0 || monthNum > 11) {
+    return timeStr ? { isoDate: '', timeStr, dayName: '', dayNum: 0, monthName: '', year } : null;
+  }
+
+  const dObj = new Date(year, monthNum, dayNum);
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const isoDate = `${year}-${String(monthNum + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+
+  return {
+    isoDate,
+    timeStr,
+    dayName: dayNames[dObj.getDay()] || '',
+    dayNum,
+    monthName: monthNames[monthNum] || '',
+    year
+  };
+}
+
+/**
+ * Fallback parser for row-per-event CSV/TSV exports (e.g. Arbor User Profile > Calendar > Events)
+ */
+function parseArborEventsTable(rows, baseYear) {
+  if (!rows || rows.length < 2) return null;
+
+  // Find header row within first 5 rows
+  let headerIdx = 0;
+  let cols = {};
+  for (let r = 0; r < Math.min(5, rows.length); r++) {
+    const lower = rows[r].map(c => (c || '').toLowerCase().trim());
+    const findCol = (patterns) => lower.findIndex(h => patterns.some(p => h === p || h.includes(p)));
+
+    const titleCol = findCol(['event', 'title', 'summary', 'name', 'session', 'lesson', 'subject', 'description']);
+    const startCol = findCol(['start date', 'start time', 'start', 'from', 'date & time', 'date']);
+    const endCol = findCol(['end date', 'end time', 'end', 'to', 'finish']);
+    const timeCol = findCol(['time', 'times', 'duration']);
+    const roomCol = findCol(['location', 'room', 'venue', 'place']);
+    const staffCol = findCol(['staff', 'teacher', 'organiser', 'organizer']);
+
+    if (startCol !== -1 && (titleCol !== -1 || endCol !== -1)) {
+      headerIdx = r;
+      cols = { titleCol, startCol, endCol, timeCol, roomCol, staffCol };
+      break;
+    }
+  }
+
+  // If no explicit header matched, try heuristic on row 0/1 if row has date+time
+  if (cols.startCol === undefined || cols.startCol === -1) return null;
+
+  const eventsByStaff = {};
+  const allDatesList = [];
+  const dataRows = rows.slice(headerIdx + 1);
+
+  dataRows.forEach((row, idx) => {
+    const startRaw = cols.startCol !== -1 ? (row[cols.startCol] || '') : '';
+    if (!startRaw.trim()) return;
+
+    const startParsed = parseArborDateTime(startRaw, baseYear);
+    if (!startParsed || !startParsed.isoDate) return;
+
+    const endRaw = cols.endCol !== -1 ? (row[cols.endCol] || '') : '';
+    const endParsed = endRaw ? parseArborDateTime(endRaw, startParsed.year) : null;
+
+    let startTime = startParsed.timeStr;
+    let endTime = endParsed?.timeStr || '';
+
+    // Check combined time range e.g. "09:05 - 10:05" in startRaw or timeCol
+    const timeRangeSource = (cols.timeCol !== -1 ? row[cols.timeCol] : '') || startRaw;
+    const rangeMatch = timeRangeSource.match(/(\d{1,2}:\d{2})\s*[-–to]+\s*(\d{1,2}:\d{2})/i);
+    if (rangeMatch) {
+      startTime = startTime || rangeMatch[1].padStart(5, '0');
+      endTime = endTime || rangeMatch[2].padStart(5, '0');
+    }
+
+    if (!startTime) startTime = '09:00';
+    if (!endTime) {
+      const [sh, sm] = startTime.split(':').map(Number);
+      const eh = (sh + 1) % 24;
+      endTime = `${String(eh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`;
+    }
+
+    const titleRaw = cols.titleCol !== -1 ? (row[cols.titleCol] || '').trim() : 'Arbor Event';
+    const roomRaw = cols.roomCol !== -1 ? (row[cols.roomCol] || '').trim() : '';
+    const staffName = (cols.staffCol !== -1 && row[cols.staffCol]?.trim()) ? row[cols.staffCol].trim() : 'My Calendar';
+
+    const parsedCell = parseTimetableCell(roomRaw ? titleRaw : titleRaw) || {
+      isPpa: /^PPA\b/i.test(titleRaw),
+      subject: titleRaw,
+      year: '',
+      classGroup: '',
+      room: '',
+      raw: titleRaw
+    };
+    if (roomRaw && !parsedCell.room) parsedCell.room = roomRaw;
+
+    if (!eventsByStaff[staffName]) eventsByStaff[staffName] = [];
+    allDatesList.push(startParsed.isoDate);
+
+    eventsByStaff[staffName].push({
+      id: `ev_list_${idx}_${Date.now()}`,
+      staff: staffName,
+      date: startParsed.isoDate,
+      dayName: startParsed.dayName,
+      dayNum: startParsed.dayNum,
+      monthName: startParsed.monthName,
+      year: parsedCell.year || startParsed.year,
+      period: `${startTime}-${endTime}`,
+      startTime,
+      endTime,
+      ...parsedCell
+    });
+  });
+
+  const staffList = Object.keys(eventsByStaff);
+  if (staffList.length === 0 || allDatesList.length === 0) return null;
+
+  const sortedDates = Array.from(new Set(allDatesList)).sort();
+
+  return {
+    success: true,
+    isEventList: true,
+    staffList,
+    eventsByStaff,
+    allPeriods: [],
+    dateRange: {
+      start: sortedDates[0] || '',
+      end: sortedDates[sortedDates.length - 1] || '',
+      totalDays: sortedDates.length
+    },
+    detectedYear: baseYear
+  };
+}
+
+/**
  * Escapes text for iCalendar RFC 5545 format
  */
 function escapeIcsText(str) {
@@ -354,7 +547,9 @@ export function generateIcsCalendar(events, options = {}) {
   ];
 
   validEvents.forEach((ev, idx) => {
-    const timing = bellTimes[ev.period] || { start: '09:00', end: '10:00' };
+    const timing = (ev.startTime && ev.endTime)
+      ? { start: ev.startTime, end: ev.endTime }
+      : (bellTimes[ev.period] || { start: '09:00', end: '10:00' });
     const dtStart = formatIcsDateTime(ev.date, timing.start);
     const dtEnd = formatIcsDateTime(ev.date, timing.end);
 

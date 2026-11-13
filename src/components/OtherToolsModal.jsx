@@ -3,7 +3,7 @@ import {
   Wrench, Calendar, Clock, Download, Upload, FileText, CheckCircle2,
   AlertCircle, ChevronDown, ChevronUp, Search, Info, Settings,
   MapPin, Sparkles, Check, ArrowLeft, ArrowRight, Shuffle, Calculator,
-  ClipboardList
+  ClipboardList, Copy
 } from 'lucide-react';
 import {
   parseArborCsv,
@@ -52,6 +52,43 @@ export default function OtherToolsModal({ isOpen, onClose }) {
   const [previewSearch, setPreviewSearch] = useState('');
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [showFullYearHelper, setShowFullYearHelper] = useState(false);
+  const [scriptCopied, setScriptCopied] = useState(false);
+
+  const ARBOR_EVENTS_SCRAPER_SCRIPT = `(() => {
+  const esc = v => '"' + String(v ?? '').replace(/\\s+/g, ' ').trim().replace(/"/g, '""') + '"';
+  const rows = [];
+  const tbl = Array.from(document.querySelectorAll('table')).find(t => t.querySelectorAll('tbody tr, tr').length > 3);
+  if (tbl) {
+    tbl.querySelectorAll('tr').forEach(tr => {
+      const cells = Array.from(tr.querySelectorAll('th, td')).map(td => esc(td.innerText));
+      if (cells.some(c => c !== '""')) rows.push(cells.join(','));
+    });
+  } else {
+    const headers = Array.from(document.querySelectorAll('.x-column-header-text')).map(el => esc(el.innerText));
+    if (headers.length) rows.push(headers.join(','));
+    document.querySelectorAll('.x-grid-item, .x-grid-row').forEach(row => {
+      const cells = Array.from(row.querySelectorAll('.x-grid-cell-inner')).map(el => esc(el.innerText));
+      if (cells.some(c => c !== '""')) rows.push(cells.join(','));
+    });
+  }
+  if (rows.length < 2) { alert('No Arbor table rows found on this view. Make sure User Profile > Calendar > Events is loaded.'); return; }
+  const blob = new Blob([rows.join('\\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Arbor_Calendar_Events.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+})();`;
+
+  const handleCopyScraperScript = async () => {
+    try {
+      await navigator.clipboard.writeText(ARBOR_EVENTS_SCRAPER_SCRIPT);
+      setScriptCopied(true);
+      setTimeout(() => setScriptCopied(false), 3000);
+    } catch (e) {
+      console.error('Clipboard copy failed:', e);
+    }
+  };
 
   // Bell times configuration saved in localStorage
   const [bellTimes, setBellTimes] = useState(() => {
@@ -543,6 +580,56 @@ export default function OtherToolsModal({ isOpen, onClose }) {
                     <span>{parseError}</span>
                   </div>
                 )}
+
+                {/* Full-Year Export Helper (Arbor 12-day limit workaround) */}
+                <div className="mt-3 rounded-xl border border-white/10 bg-slate-950/60 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowFullYearHelper(!showFullYearHelper)}
+                    className="w-full px-3.5 py-2.5 text-left flex items-center justify-between hover:bg-slate-800/40 transition"
+                  >
+                    <div className="flex items-center gap-2 text-xs font-semibold text-amber-300">
+                      <Info className="w-3.5 h-3.5 shrink-0" />
+                      <span>Arbor only exporting 12 days? How to get the Full Year from Calendar &gt; Events</span>
+                    </div>
+                    {showFullYearHelper ? <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
+                  </button>
+
+                  {showFullYearHelper && (
+                    <div className="px-3.5 pb-3.5 pt-2 border-t border-white/10 text-[11px] text-slate-300 space-y-2.5">
+                      <div>
+                        <strong className="text-emerald-300">Option 1: 1-Click CSV Extractor (User Profile &gt; Calendar &gt; Events)</strong>
+                        <ol className="list-decimal pl-4 mt-1 space-y-1 text-slate-400">
+                          <li>In Arbor, go to <strong>User Profile &gt; Calendar &gt; Events</strong> and make sure your full year events are visible.</li>
+                          <li>Click the button below to copy the safe, read-only extractor script.</li>
+                          <li>Press <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 font-mono">F12</kbd> (or <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 font-mono">Ctrl+Shift+J</kbd>) in your browser, open the <strong>Console</strong> tab, paste &amp; press <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 font-mono">Enter</kbd>.</li>
+                          <li>It will immediately download <span className="font-mono text-white">Arbor_Calendar_Events.csv</span> — drop that file right above!</li>
+                        </ol>
+                        <button
+                          type="button"
+                          onClick={handleCopyScraperScript}
+                          className="mt-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/10 text-xs font-semibold text-emerald-300 flex items-center gap-1.5 transition"
+                        >
+                          {scriptCopied ? (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Extractor Script Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copy Arbor CSV Extractor Script</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="pt-2 border-t border-white/5 text-slate-400">
+                        <strong className="text-cyan-300">Option 2: Direct Copy &amp; Paste</strong> — Highlight the rows in Arbor&apos;s <strong>Calendar &gt; Events</strong> table (including the column headers), press <kbd className="px-1 py-0.5 rounded bg-slate-800 text-slate-200 font-mono">Ctrl+C</kbd>, switch to <strong>Paste Text</strong> above, and paste. Tab-separated tables are parsed automatically.
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* 2. Detected Timetable & Configuration */}
@@ -892,7 +979,9 @@ export default function OtherToolsModal({ isOpen, onClose }) {
                         </div>
                       ) : (
                         previewEvents.map((ev, idx) => {
-                          const timing = bellTimes[ev.period] || { start: '09:00', end: '10:00' };
+                          const timing = (ev.startTime && ev.endTime)
+                            ? { start: ev.startTime, end: ev.endTime }
+                            : (bellTimes[ev.period] || { start: '09:00', end: '10:00' });
                           return (
                             <div key={idx} className="p-3 hover:bg-slate-800/50 transition flex items-center justify-between gap-3 text-xs">
                               <div className="flex items-center gap-3 min-w-0">
