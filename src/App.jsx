@@ -632,6 +632,40 @@ Additional custom requirements or context: ${custom || 'Convert this material in
 
 const GEMINI_MODELS = [
   {
+    id: 'gemini-4-neon',
+    name: 'Gemini 4 Neon',
+    tier: 'free',
+    badge: 'Gemini 4 Neon (Fast)',
+    speed: 'Ultra Fast',
+    description: 'Lightweight Gemini 4 model built for instant classroom summaries, quick worksheets, and high-throughput generation.',
+    recommended: true
+  },
+  {
+    id: 'gemini-4-carbon',
+    name: 'Gemini 4 Carbon',
+    tier: 'free',
+    badge: 'Gemini 4 Carbon (Balanced)',
+    speed: 'Fast',
+    description: 'Balanced Gemini 4 workhorse with strong pedagogical structuring and everyday classroom speed.',
+    recommended: true
+  },
+  {
+    id: 'gemini-4-hydrogen',
+    name: 'Gemini 4 Hydrogen',
+    tier: 'paid',
+    badge: 'Gemini 4 Hydrogen (Reasoning)',
+    speed: 'Deep Reasoning',
+    description: 'Advanced Gemini 4 reasoning model for nuanced differentiation, multi-step lesson sequences, and complex schemes.'
+  },
+  {
+    id: 'gemini-4-argon',
+    name: 'Gemini 4 Argon',
+    tier: 'paid',
+    badge: 'Flagship Reasoning (Gemini 4 Argon)',
+    speed: 'Deep Reasoning',
+    description: 'Google’s flagship Gemini 4 reasoning model designed for complex multi-step curriculum planning, long-horizon scheme design, and deep subject mastery.'
+  },
+  {
     id: 'gemini-3.5-flash-lite',
     name: 'Gemini 3.5 Flash-Lite',
     tier: 'free',
@@ -666,14 +700,6 @@ const GEMINI_MODELS = [
     description: 'Prior-generation lightweight model. Maintained for legacy compatibility.'
   },
   {
-    id: 'gemini-4-argon',
-    name: 'Gemini 4 Argon',
-    tier: 'paid',
-    badge: 'Flagship Reasoning (Gemini 4 Argon)',
-    speed: 'Deep Reasoning',
-    description: 'Google’s next-gen flagship reasoning model designed for complex multi-step curriculum planning, long-horizon scheme design, and deep subject mastery (requires Google Cloud billing).'
-  },
-  {
     id: 'gemini-3.8-pro',
     name: 'Gemini 3.8 Pro',
     tier: 'paid',
@@ -701,20 +727,60 @@ const GEMINI_MODELS = [
 
 const OPENAI_MODELS = [
   {
-    id: 'gpt-4o-mini',
-    name: 'GPT-4o Mini',
+    id: 'gpt-5-mini',
+    name: 'GPT-5 Mini',
+    tier: 'standard',
+    badge: 'Fast & Latest',
+    speed: 'Fast',
+    description: 'Fast, cost-effective GPT-5 model for everyday lesson plans, quizzes, and worksheets.'
+  },
+  {
+    id: 'gpt-5',
+    name: 'GPT-5',
+    tier: 'premium',
+    badge: 'Flagship Intelligence',
+    speed: 'Deep Reasoning',
+    description: 'OpenAI flagship model for deep curriculum synthesis, A-Level/GCSE exam prep, and complex tasks.'
+  },
+  {
+    id: 'gpt-4.1-mini',
+    name: 'GPT-4.1 Mini',
     tier: 'standard',
     badge: 'Fast & Affordable',
     speed: 'Fast',
-    description: 'Cost-effective, highly capable for secondary lesson plans.'
+    description: 'Reliable, fast GPT-4.1 model with strong instruction following.'
+  },
+  {
+    id: 'gpt-4.1',
+    name: 'GPT-4.1',
+    tier: 'premium',
+    badge: 'High Intelligence',
+    speed: 'Deep Reasoning',
+    description: 'Strong reasoning and structured output for secondary curriculums.'
+  },
+  {
+    id: 'o4-mini',
+    name: 'o4-mini',
+    tier: 'standard',
+    badge: 'Reasoning Model',
+    speed: 'Deep Reasoning',
+    description: 'Compact reasoning model ideal for STEM, maths, and logic-heavy lesson tasks.'
+  },
+  {
+    id: 'gpt-4o-mini',
+    name: 'GPT-4o Mini',
+    tier: 'standard',
+    badge: 'Legacy Fast',
+    speed: 'Fast',
+    description: 'Cost-effective, proven model for secondary lesson plans.'
   },
   {
     id: 'gpt-4o',
     name: 'GPT-4o',
     tier: 'premium',
-    badge: 'Flagship Intelligence',
+    badge: 'Legacy Flagship',
     speed: 'Deep Reasoning',
-    description: 'Top-tier OpenAI model with advanced reasoning for senior secondary curriculums.'
+    description: 'Proven OpenAI model for senior secondary curriculums.'
   }
 ];
 
@@ -764,7 +830,11 @@ const SECONDARY_YEAR_LEVELS = [
 export default function App() {
   // App state
   const [provider, setProvider] = useState(() => localStorage.getItem('ai_provider') || 'gemini');
-  const [apiKey, setApiKey] = useState(() => sanitizeApiKey(localStorage.getItem('ai_apikey') || ''));
+  const [apiKey, setApiKey] = useState(() => {
+    const prov = localStorage.getItem('ai_provider') || 'gemini';
+    const perProv = localStorage.getItem(`ai_apikey_${prov}`);
+    return sanitizeApiKey(perProv || localStorage.getItem('ai_apikey') || '');
+  });
   const [model, setModel] = useState(() => {
     const saved = localStorage.getItem('ai_model');
     return (!saved || saved === 'gemini-1.5-flash' || saved === 'gemini-2.0-flash' || saved === 'gemini-2.5-flash' || saved === 'gemini-3.8-flash-lite')
@@ -958,10 +1028,13 @@ export default function App() {
     }
   }, [educationStage]);
 
-  // Persist settings & detected models
+  // Persist settings & detected models (also keep per-provider API keys so switching never loses a key)
   useEffect(() => {
     localStorage.setItem('ai_provider', provider);
     localStorage.setItem('ai_apikey', apiKey);
+    if (apiKey) {
+      localStorage.setItem(`ai_apikey_${provider}`, apiKey);
+    }
     localStorage.setItem('ai_model', model);
     localStorage.setItem('ai_custom_model', customModel);
     localStorage.setItem('ai_input_mode', inputMode);
@@ -1084,10 +1157,14 @@ export default function App() {
     return () => document.removeEventListener('click', handleGlobalLinkClick);
   }, []);
 
-  // Handle provider changes & pick default models
+  // Handle provider changes & pick default models + restore saved key for that provider
   const handleSelectProvider = (nextProvider) => {
     setProvider(nextProvider);
     setDetectStatus(null);
+    const savedKey = sanitizeApiKey(localStorage.getItem(`ai_apikey_${nextProvider}`) || '');
+    if (savedKey) {
+      setApiKey(savedKey);
+    }
     if (nextProvider === 'gemini') {
       const topModel = (detectedGeminiModels && detectedGeminiModels.length > 0)
         ? (detectedGeminiModels.find(m => m.recommended) || detectedGeminiModels[0]).id
@@ -1096,12 +1173,12 @@ export default function App() {
     } else if (nextProvider === 'claude') {
       const topModel = (detectedClaudeModels && detectedClaudeModels.length > 0)
         ? detectedClaudeModels[0].id
-        : 'claude-3-7-sonnet-latest';
+        : 'claude-sonnet-4-5';
       setModel(topModel);
     } else {
       const topModel = (detectedOpenAIModels && detectedOpenAIModels.length > 0)
         ? detectedOpenAIModels[0].id
-        : 'gpt-4o-mini';
+        : 'gpt-5-mini';
       setModel(topModel);
     }
   };
@@ -1130,10 +1207,10 @@ export default function App() {
       if (provToUse === 'gemini') {
         const liveModels = await fetchAvailableGeminiModels(trimmedKey);
         setDetectedGeminiModels(liveModels);
-        const hasArgon = liveModels.some(m => m.id.toLowerCase().includes('argon'));
+        const hasGemini4 = liveModels.some(m => m.isGemini4 || /hydrogen|argon|carbon|neon|gemini-4/i.test(m.id));
         setDetectStatus({
           type: 'success',
-          message: `Key verified! ${liveModels.length} active models detected from Google${hasArgon ? ' (including Gemini 4 Argon & Flash models)' : ''}.`
+          message: `Key verified! ${liveModels.length} active models detected from Google${hasGemini4 ? ' (including Gemini 4 models)' : ''}.`
         });
 
         // If current model isn't in detected models, select the recommended Flash model
@@ -1218,6 +1295,9 @@ export default function App() {
       } else if (clean.startsWith('AIza') || clean.startsWith('AQ.')) {
         targetProvider = 'gemini';
         setProvider('gemini');
+      } else if (clean.startsWith('sk-')) {
+        targetProvider = 'openai';
+        setProvider('openai');
       }
 
       if (autoDetectTimeoutRef.current) clearTimeout(autoDetectTimeoutRef.current);
@@ -2879,7 +2959,7 @@ export default function App() {
                               Beta
                             </span>
                           </div>
-                          <p className="text-[10px] text-slate-400 m-0">Claude 3.7 &amp; 3.5</p>
+                          <p className="text-[10px] text-slate-400 m-0">Claude 4.5 &amp; 3.7</p>
                         </div>
                       </div>
                       {provider === 'claude' && <Check className="w-4 h-4 text-amber-400 shrink-0" />}
@@ -3375,10 +3455,10 @@ export default function App() {
                     type="text"
                     placeholder={
                       provider === 'gemini'
-                        ? "e.g., gemini-4-argon or gemini-3.8-pro"
+                        ? "e.g., gemini-4-hydrogen, gemini-4-argon, gemini-4-carbon, or gemini-4-neon"
                         : provider === 'openai'
-                          ? "e.g., gpt-4o or o3-mini"
-                          : "e.g., claude-3-7-sonnet-latest or claude-3-5-haiku-latest"
+                          ? "e.g., gpt-5, gpt-4.1, or o4-mini"
+                          : "e.g., claude-sonnet-4-5 or claude-3-7-sonnet-latest"
                     }
                     value={customModel}
                     onChange={(e) => setCustomModel(e.target.value)}

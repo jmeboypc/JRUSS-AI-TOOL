@@ -5,14 +5,18 @@
  */
 export function sanitizeApiKey(key) {
   if (!key) return '';
-  let clean = key.trim().replace(/^["']|["']$/g, '');
+  let clean = key.trim().replace(/^["']|["']$/g, '').replace(/\s+/g, '');
   if (clean.startsWith('AQ.') && clean.indexOf('AQ.', 3) !== -1) {
     clean = clean.substring(0, clean.indexOf('AQ.', 3));
   } else if (clean.startsWith('AIza') && clean.indexOf('AIza', 4) !== -1) {
     clean = clean.substring(0, clean.indexOf('AIza', 4));
   } else if (clean.startsWith('sk-ant-') && clean.indexOf('sk-ant-', 7) !== -1) {
     clean = clean.substring(0, clean.indexOf('sk-ant-', 7));
-  } else if (clean.startsWith('sk-') && clean.indexOf('sk-', 3) !== -1) {
+  } else if (clean.startsWith('sk-proj-') && clean.indexOf('sk-proj-', 8) !== -1) {
+    clean = clean.substring(0, clean.indexOf('sk-proj-', 8));
+  } else if (clean.startsWith('sk-svcacct-') && clean.indexOf('sk-svcacct-', 11) !== -1) {
+    clean = clean.substring(0, clean.indexOf('sk-svcacct-', 11));
+  } else if (clean.startsWith('sk-') && !clean.startsWith('sk-proj-') && !clean.startsWith('sk-svcacct-') && clean.indexOf('sk-', 3) !== -1) {
     clean = clean.substring(0, clean.indexOf('sk-', 3));
   }
   return clean;
@@ -118,6 +122,8 @@ async function callGemini(apiKey, model, systemPrompt, userPrompt) {
  * @returns {Promise<string>}
  */
 async function callOpenAI(apiKey, model, systemPrompt, userPrompt) {
+  const cleanKey = sanitizeApiKey(apiKey);
+  const cleanModel = (model || 'gpt-4o-mini').trim();
   const url = 'https://api.openai.com/v1/chat/completions';
   
   const messages = [];
@@ -126,17 +132,24 @@ async function callOpenAI(apiKey, model, systemPrompt, userPrompt) {
   }
   messages.push({ role: 'user', content: userPrompt });
 
+  // OpenAI reasoning / o-series & gpt-5 models reject custom temperature values
+  const lowerModel = cleanModel.toLowerCase();
+  const isReasoningOrGpt5 = /^(o1|o3|o4|gpt-5)/.test(lowerModel);
+  const payload = {
+    model: cleanModel,
+    messages: messages,
+  };
+  if (!isReasoningOrGpt5) {
+    payload.temperature = 0.3;
+  }
+
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
+      'Authorization': `Bearer ${cleanKey}`
     },
-    body: JSON.stringify({
-      model: model,
-      messages: messages,
-      temperature: 0.3
-    })
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
@@ -306,8 +319,11 @@ export async function fetchAvailableGeminiModels(apiKey) {
     .map(m => {
       const id = m.name.replace(/^models\//, '');
       const lower = id.toLowerCase();
+      const isHydrogen = lower.includes('hydrogen');
       const isArgon = lower.includes('argon');
-      const isGemini4 = lower.includes('gemini-4') || lower.includes('gemini4') || isArgon;
+      const isCarbon = lower.includes('carbon');
+      const isNeon = lower.includes('neon');
+      const isGemini4 = lower.includes('gemini-4') || lower.includes('gemini4') || isHydrogen || isArgon || isCarbon || isNeon;
       const isFlash = lower.includes('flash');
       const isPro = lower.includes('pro');
       const isLite = lower.includes('lite');
@@ -320,6 +336,18 @@ export async function fetchAvailableGeminiModels(apiKey) {
         tier = 'paid';
         badge = 'Flagship Reasoning (Gemini 4 Argon)';
         speed = 'Deep Reasoning';
+      } else if (isHydrogen) {
+        tier = 'paid';
+        badge = 'Gemini 4 Hydrogen (Reasoning)';
+        speed = 'Deep Reasoning';
+      } else if (isCarbon) {
+        tier = 'free';
+        badge = 'Gemini 4 Carbon (Balanced)';
+        speed = 'Fast';
+      } else if (isNeon) {
+        tier = 'free';
+        badge = 'Gemini 4 Neon (Fast)';
+        speed = 'Ultra Fast';
       } else if (isFlash) {
         tier = 'free';
         badge = isLite ? 'Free Tier (Lightweight)' : 'Free Tier (1,500 req/day)';
@@ -330,8 +358,8 @@ export async function fetchAvailableGeminiModels(apiKey) {
         speed = 'Deep Reasoning';
       } else if (isGemini4) {
         tier = 'paid';
-        badge = 'Gemini 4 Flagship';
-        speed = 'Deep Reasoning';
+        badge = 'Gemini 4';
+        speed = 'Fast';
       }
 
       return {
@@ -343,24 +371,36 @@ export async function fetchAvailableGeminiModels(apiKey) {
         speed,
         isFlash,
         isPro,
+        isHydrogen,
         isArgon,
+        isCarbon,
+        isNeon,
         isGemini4,
-        recommended: id === 'gemini-3.5-flash-lite' || id === 'gemini-3.5-flash' || id === 'gemini-3.8-flash'
+        recommended: isNeon || isCarbon || id === 'gemini-3.5-flash-lite' || id === 'gemini-3.5-flash' || id === 'gemini-3.8-flash'
       };
     });
 
-  // Sort so fastest stable Free Tier (3.5 Flash-Lite / 3.5 Flash / 3.8 Flash) are on top for free educators, followed by Gemini 4 Argon
+  // Sort: Gemini 4 Neon/Carbon/Hydrogen/Argon & fast Free Tier Flash models at top
+  const gemini4Order = (m) => {
+    if (m.isNeon) return 0;
+    if (m.isCarbon) return 1;
+    if (m.isHydrogen) return 2;
+    if (m.isArgon) return 3;
+    if (m.isGemini4) return 4;
+    return 99;
+  };
+
   contentModels.sort((a, b) => {
+    const g4a = gemini4Order(a);
+    const g4b = gemini4Order(b);
+    if (g4a !== g4b) return g4a - g4b;
+
     if (a.id === 'gemini-3.5-flash-lite') return -1;
     if (b.id === 'gemini-3.5-flash-lite') return 1;
     if (a.id === 'gemini-3.5-flash') return -1;
     if (b.id === 'gemini-3.5-flash') return 1;
     if (a.id === 'gemini-3.8-flash') return -1;
     if (b.id === 'gemini-3.8-flash') return 1;
-
-    // Prioritize Gemini 4 Argon flagship
-    if (a.id.toLowerCase().includes('argon') && !b.id.toLowerCase().includes('argon')) return -1;
-    if (!a.id.toLowerCase().includes('argon') && b.id.toLowerCase().includes('argon')) return 1;
 
     const a38 = a.id.includes('3.8') || a.id.includes('3-8');
     const b38 = b.id.includes('3.8') || b.id.includes('3-8');
@@ -374,9 +414,6 @@ export async function fetchAvailableGeminiModels(apiKey) {
 
     if (a.isFlash && !b.isFlash) return -1;
     if (!a.isFlash && b.isFlash) return 1;
-
-    if (a.isGemini4 && !b.isGemini4) return -1;
-    if (!a.isGemini4 && b.isGemini4) return 1;
 
     if (a.isPro && !b.isPro) return -1;
     if (!a.isPro && b.isPro) return 1;
@@ -392,13 +429,14 @@ export async function fetchAvailableGeminiModels(apiKey) {
  * @returns {Promise<Array<{ id: string, name: string, description: string, tier: string, badge: string, speed: string }>>}
  */
 export async function fetchAvailableOpenAIModels(apiKey) {
-  if (!apiKey || !apiKey.trim()) {
+  const cleanKey = sanitizeApiKey(apiKey);
+  if (!cleanKey) {
     throw new Error("OpenAI API key is required to detect models.");
   }
 
   const response = await fetch('https://api.openai.com/v1/models', {
     headers: {
-      'Authorization': `Bearer ${apiKey.trim()}`
+      'Authorization': `Bearer ${cleanKey}`
     }
   });
 
@@ -420,22 +458,40 @@ export async function fetchAvailableOpenAIModels(apiKey) {
     throw new Error("No models returned from OpenAI API.");
   }
 
-  // Filter for relevant GPT chat completion models
+  // Filter for relevant GPT / o-series chat completion models, excluding audio/image/realtime-only endpoints
   const chatModels = data.data
-    .filter(m => m.id && (m.id.startsWith('gpt-4') || m.id.startsWith('o1') || m.id.startsWith('o3') || m.id.startsWith('chatgpt')))
+    .filter(m => {
+      if (!m.id) return false;
+      const id = m.id.toLowerCase();
+      const isChatFamily = id.startsWith('gpt-5') || id.startsWith('gpt-4') || id.startsWith('o4') || id.startsWith('o3') || id.startsWith('o1') || id.startsWith('chatgpt');
+      const isNonText = /audio|realtime|transcribe|tts|image|search|dall-e|whisper|embedding|moderation/.test(id);
+      return isChatFamily && !isNonText;
+    })
     .map(m => {
-      const isMini = m.id.includes('mini');
+      const id = m.id;
+      const lower = id.toLowerCase();
+      const isMiniOrNano = lower.includes('mini') || lower.includes('nano');
       return {
-        id: m.id,
-        name: m.id,
-        description: isMini ? 'Fast & cost-effective OpenAI model.' : 'Advanced reasoning OpenAI model.',
-        tier: isMini ? 'standard' : 'premium',
-        badge: isMini ? 'Fast & Affordable' : 'Flagship Intelligence',
-        speed: isMini ? 'Fast' : 'Deep Reasoning'
+        id,
+        name: id,
+        description: isMiniOrNano ? 'Fast & cost-effective OpenAI model.' : 'Advanced reasoning OpenAI model.',
+        tier: isMiniOrNano ? 'standard' : 'premium',
+        badge: isMiniOrNano ? 'Fast & Affordable' : 'Flagship Intelligence',
+        speed: isMiniOrNano ? 'Fast' : 'Deep Reasoning'
       };
     });
 
-  chatModels.sort((a, b) => a.id.localeCompare(b.id));
+  // Sort newest flagship families first (gpt-5, gpt-4.1, o4, o3, gpt-4o)
+  const rank = (id) => {
+    const l = id.toLowerCase();
+    if (l.startsWith('gpt-5')) return 0;
+    if (l.startsWith('gpt-4.1')) return 1;
+    if (l.startsWith('o4')) return 2;
+    if (l.startsWith('o3')) return 3;
+    if (l.startsWith('gpt-4o')) return 4;
+    return 5;
+  };
+  chatModels.sort((a, b) => rank(a.id) - rank(b.id) || a.id.localeCompare(b.id));
   return chatModels;
 }
 
@@ -444,36 +500,44 @@ export async function fetchAvailableOpenAIModels(apiKey) {
  */
 export const CLAUDE_DEFAULT_PRESETS = [
   {
-    id: 'claude-3-7-sonnet-latest',
-    name: 'Claude 3.7 Sonnet (Beta)',
+    id: 'claude-sonnet-4-5',
+    name: 'Claude Sonnet 4.5',
     tier: 'premium',
     badge: 'Flagship Hybrid Reasoning',
-    speed: 'Deep Reasoning',
-    description: 'Anthropic\'s latest flagship model with hybrid instant/extended thinking capabilities for advanced lesson design and deep subject analysis.'
-  },
-  {
-    id: 'claude-3-5-sonnet-latest',
-    name: 'Claude 3.5 Sonnet (Beta)',
-    tier: 'premium',
-    badge: 'High Intelligence & Speed',
     speed: 'Fast Reasoning',
-    description: 'Top-tier Anthropic model widely acclaimed for sophisticated pedagogy, nuanced student scaffolding, and structured schemas.'
+    description: 'Anthropic\'s latest Sonnet model for sophisticated pedagogy, nuanced scaffolding, and structured lesson resources.'
   },
   {
-    id: 'claude-3-5-haiku-latest',
-    name: 'Claude 3.5 Haiku (Beta)',
+    id: 'claude-haiku-4-5',
+    name: 'Claude Haiku 4.5',
     tier: 'standard',
     badge: 'Ultra Fast & Affordable',
     speed: 'Instant',
-    description: 'Rapid, lightweight Claude model designed for instant classroom summaries, worksheets, and quick pedagogical tasks.'
+    description: 'Rapid, lightweight Claude 4.5 model designed for instant classroom summaries, worksheets, and quick tasks.'
   },
   {
-    id: 'claude-3-opus-latest',
-    name: 'Claude 3 Opus (Beta)',
+    id: 'claude-opus-4-1',
+    name: 'Claude Opus 4.1',
     tier: 'premium',
     badge: 'Deep Pedagogical Depth',
     speed: 'Deep Reasoning',
-    description: 'Heavyweight reasoning model for complex curriculum plans and multi-stage academic schemes of work.'
+    description: 'Heavyweight Claude 4.1 reasoning model for complex curriculum plans and multi-stage academic schemes of work.'
+  },
+  {
+    id: 'claude-3-7-sonnet-latest',
+    name: 'Claude 3.7 Sonnet (Legacy)',
+    tier: 'premium',
+    badge: 'Hybrid Reasoning',
+    speed: 'Deep Reasoning',
+    description: 'Proven Claude 3.7 Sonnet model with extended thinking capabilities.'
+  },
+  {
+    id: 'claude-3-5-haiku-latest',
+    name: 'Claude 3.5 Haiku (Legacy)',
+    tier: 'standard',
+    badge: 'Fast & Affordable',
+    speed: 'Instant',
+    description: 'Previous-generation lightweight Claude model for rapid classroom tasks.'
   }
 ];
 
@@ -483,11 +547,11 @@ export const CLAUDE_DEFAULT_PRESETS = [
  * @returns {Promise<Array<{ id: string, name: string, description: string, tier: string, badge: string, speed: string }>>}
  */
 export async function fetchAvailableClaudeModels(apiKey) {
-  if (!apiKey || !apiKey.trim()) {
+  const trimmed = sanitizeApiKey(apiKey);
+  if (!trimmed) {
     throw new Error("Claude API key is required to detect models.");
   }
 
-  const trimmed = apiKey.trim();
   const url = 'https://api.anthropic.com/v1/models';
 
   try {
@@ -510,46 +574,45 @@ export async function fetchAvailableClaudeModels(apiKey) {
             const isHaiku = lower.includes('haiku');
             const isSonnet = lower.includes('sonnet');
             const isOpus = lower.includes('opus');
-            const is37 = lower.includes('3-7') || lower.includes('3.7');
+            const isGen4 = /claude-(?:sonnet|opus|haiku)-4|claude-4/.test(lower);
 
             let badge = 'Available';
             let speed = 'Fast';
             let tier = 'premium';
 
             if (isHaiku) {
-              badge = 'Ultra Fast & Affordable';
+              badge = isGen4 ? 'Claude 4 Haiku (Fast)' : 'Ultra Fast & Affordable';
               speed = 'Instant';
               tier = 'standard';
-            } else if (is37) {
-              badge = 'Flagship Hybrid Reasoning';
-              speed = 'Deep Reasoning';
-              tier = 'premium';
             } else if (isSonnet) {
-              badge = 'High Intelligence & Speed';
+              badge = isGen4 ? 'Claude 4 Sonnet (Flagship)' : 'High Intelligence & Speed';
               speed = 'Fast Reasoning';
               tier = 'premium';
             } else if (isOpus) {
-              badge = 'Deep Pedagogical Depth';
+              badge = isGen4 ? 'Claude 4 Opus (Deep)' : 'Deep Pedagogical Depth';
               speed = 'Deep Reasoning';
               tier = 'premium';
             }
 
             return {
               id,
-              name: m.display_name ? `${m.display_name} (Beta)` : `${id} (Beta)`,
+              name: m.display_name || id,
               description: isHaiku ? 'Fast, lightweight Claude model for instant classroom tasks.' : 'Advanced intelligence Anthropic model for secondary lesson plans.',
               tier,
               badge,
-              speed
+              speed,
+              isGen4
             };
           });
 
         if (models.length > 0) {
           models.sort((a, b) => {
+            if (a.isGen4 && !b.isGen4) return -1;
+            if (!a.isGen4 && b.isGen4) return 1;
+            if (a.id.includes('4-5') && !b.id.includes('4-5')) return -1;
+            if (!a.id.includes('4-5') && b.id.includes('4-5')) return 1;
             if (a.id.includes('3-7') && !b.id.includes('3-7')) return -1;
             if (!a.id.includes('3-7') && b.id.includes('3-7')) return 1;
-            if (a.id.includes('3-5-sonnet') && !b.id.includes('3-5-sonnet')) return -1;
-            if (!a.id.includes('3-5-sonnet') && b.id.includes('3-5-sonnet')) return 1;
             return a.name.localeCompare(b.name);
           });
           return models;
