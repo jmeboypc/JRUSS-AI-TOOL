@@ -442,6 +442,7 @@ export default function OtherToolsModal({ isOpen, onClose }) {
                       <select
                         value={cardMode}
                         onChange={(e) => setCardMode(e.target.value)}
+                        style={{ backgroundColor: '#020617', color: '#ffffff' }}
                         className="w-full bg-slate-950 text-white text-xs border border-white/10 rounded-lg px-2.5 py-2 focus:outline-none focus:border-indigo-500"
                       >
                         <option value="duplex">Double-Sided Flashcards</option>
@@ -456,6 +457,7 @@ export default function OtherToolsModal({ isOpen, onClose }) {
                       <select
                         value={cardsPerPage}
                         onChange={(e) => setCardsPerPage(parseInt(e.target.value, 10))}
+                        style={{ backgroundColor: '#020617', color: '#ffffff' }}
                         className="w-full bg-slate-950 text-white text-xs border border-white/10 rounded-lg px-2.5 py-2 focus:outline-none focus:border-indigo-500"
                       >
                         <option value={8}>8 cards / page (2×4)</option>
@@ -700,6 +702,7 @@ export default function OtherToolsModal({ isOpen, onClose }) {
                     <select
                       value={videoStage}
                       onChange={(e) => setVideoStage(e.target.value)}
+                      style={{ backgroundColor: '#020617', color: '#ffffff' }}
                       className="w-full bg-slate-950 text-white text-xs border border-white/10 rounded-lg px-3 py-2 focus:outline-none focus:border-rose-500"
                     >
                       <option value="KS3 (Years 7-9)">KS3 (Years 7–9)</option>
