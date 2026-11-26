@@ -849,10 +849,10 @@ export default function App() {
   const [showOpenAiGuide, setShowOpenAiGuide] = useState(false);
   const [showClaudeGuide, setShowClaudeGuide] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState({ checking: false, checked: false, available: false, latestVersion: '2.5.6', releaseUrl: '', downloadUrl: '', error: null, notes: '' });
+  const [updateStatus, setUpdateStatus] = useState({ checking: false, checked: false, available: false, latestVersion: '2.5.7', releaseUrl: '', downloadUrl: '', error: null, notes: '' });
 
   // Current app version & fixed official update repository
-  const CURRENT_APP_VERSION = '2.5.6';
+  const CURRENT_APP_VERSION = '2.5.7';
   const GITHUB_UPDATE_REPO = 'jmeboypc/JRUSS-AI-TOOL';
 
   // Education Stage State ('secondary' | 'primary')

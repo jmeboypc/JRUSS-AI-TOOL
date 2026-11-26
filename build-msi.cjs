@@ -3,7 +3,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 const pkg = require('./package.json');
 
-const VERSION = pkg.version || '2.5.6';
+const VERSION = pkg.version || '2.5.7';
 const WIX_DIR = 'C:\\Users\\jrussell\\AppData\\Local\\electron-builder\\Cache\\wix\\wix-4.0.0.5512.2-wix-4.0.0.5512.2';
 const APP_DIR = path.join(__dirname, 'release', 'JRUSS AI TOOL-win32-x64');
 const OUT_WXS = path.join(__dirname, 'release', 'installer.wxs');
