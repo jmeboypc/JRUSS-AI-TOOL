@@ -231,6 +231,7 @@ export default function OtherToolsModal({ isOpen, onClose }) {
       style={{
         overflowY: 'auto',
         WebkitOverflowScrolling: 'touch',
+        backgroundColor: 'rgba(8, 11, 17, 0.92)',
       }}
       onClick={onClose}
     >
@@ -242,6 +243,7 @@ export default function OtherToolsModal({ isOpen, onClose }) {
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
+          backgroundColor: '#0b0f19',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -250,7 +252,7 @@ export default function OtherToolsModal({ isOpen, onClose }) {
             ======================================================== */}
         <div
           className="flex items-center justify-between p-4 sm:p-5 border-b border-white/10 bg-slate-900/95"
-          style={{ flexShrink: 0 }}
+          style={{ flexShrink: 0, backgroundColor: '#0f172a' }}
         >
           <div className="flex items-center gap-3 min-w-0">
             {activeTool !== 'hub' ? (
@@ -878,7 +880,7 @@ export default function OtherToolsModal({ isOpen, onClose }) {
             ======================================================== */}
         <div
           className="p-4 border-t border-white/10 bg-slate-900/95 flex items-center justify-between"
-          style={{ flexShrink: 0 }}
+          style={{ flexShrink: 0, backgroundColor: '#0f172a' }}
         >
           <div className="text-[11px] text-slate-500 truncate mr-2">
             Teacher Toolkit • JRUSS AI Tool

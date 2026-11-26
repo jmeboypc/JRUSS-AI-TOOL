@@ -834,12 +834,19 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Backgrounds */
 .bg-transparent { background-color: transparent; }
+.bg-\[\#080b11\]\/90 { background-color: rgba(8, 11, 17, 0.9); }
+.bg-slate-950 { background-color: rgb(2, 6, 23); }
+.bg-slate-950\/95 { background-color: rgba(2, 6, 23, 0.95); }
 .bg-slate-950\/80 { background-color: rgba(2, 6, 23, 0.8); }
+.bg-slate-950\/70 { background-color: rgba(2, 6, 23, 0.7); }
 .bg-slate-950\/60 { background-color: rgba(2, 6, 23, 0.6); }
+.bg-slate-950\/50 { background-color: rgba(2, 6, 23, 0.5); }
 .bg-slate-950\/40 { background-color: rgba(2, 6, 23, 0.4); }
 .bg-slate-950\/20 { background-color: rgba(2, 6, 23, 0.2); }
 
+.bg-slate-900\/95 { background-color: rgba(15, 23, 42, 0.95); }
 .bg-slate-900\/80 { background-color: rgba(15, 23, 42, 0.8); }
+.bg-slate-900\/70 { background-color: rgba(15, 23, 42, 0.7); }
 .bg-slate-900\/60 { background-color: rgba(15, 23, 42, 0.6); }
 .bg-slate-900\/40 { background-color: rgba(15, 23, 42, 0.4); }
 .bg-slate-900 { background-color: rgb(15, 23, 42); }
